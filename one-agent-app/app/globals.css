@@ -210,7 +210,58 @@ h3 {
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 12px;
-  align-items: baseline;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.session-settings {
+  margin-left: auto;
+}
+.session-settings summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+.session-settings[open] summary {
+  color: var(--primary);
+}
+.session-settings .settings-body {
+  position: absolute;
+  right: 20px;
+  top: 52px;
+  width: min(480px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  z-index: 20;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.session-settings h4 {
+  margin: 10px 0 6px;
+  font-size: 13px;
+}
+.field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.field-inline input {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+.field-inline input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 .chat-body {
   flex: 1;

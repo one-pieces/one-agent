@@ -5,17 +5,24 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/chat — SSE 流式对话
- * body: { agentId, sessionId, message }
+ * body: { agentId, sessionId, message, modelOverride?, toolOverrides? }
+ * modelOverride/toolOverrides：请求级覆盖（未提供则用会话 meta 中的覆盖）
  * 响应：text/event-stream，每行 `data: <StreamChunk JSON>`（契约见 contracts/stream-protocol.md）
  */
 export async function POST(request: Request) {
-  let body: { agentId?: string; sessionId?: string; message?: string };
+  let body: {
+    agentId?: string;
+    sessionId?: string;
+    message?: string;
+    modelOverride?: unknown;
+    toolOverrides?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
-  const { agentId, sessionId, message } = body;
+  const { agentId, sessionId, message, modelOverride, toolOverrides } = body;
   if (!agentId || !sessionId || typeof message !== "string" || !message.trim()) {
     return Response.json({ error: "agentId, sessionId, message 必填" }, { status: 400 });
   }
@@ -32,6 +39,8 @@ export async function POST(request: Request) {
           sessionId,
           message,
           signal: request.signal,
+          modelOverride: modelOverride as never,
+          toolOverrides: toolOverrides as never,
         })) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
         }

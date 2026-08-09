@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { consumeSSE } from "@/lib/sse-client";
-import type { Message as PersistedMessage } from "@one-agent/core";
+import SessionSettings from "@/components/SessionSettings";
+import type { AgentConfig, Message as PersistedMessage } from "@one-agent/core";
 
 export interface UiToolCall {
   id: string;
@@ -35,12 +36,10 @@ function formatOutput(o: unknown): string {
 
 export default function Chat({
   sessionId,
-  agentId,
-  agentName,
+  agent,
 }: {
   sessionId: string;
-  agentId: string;
-  agentName: string;
+  agent: AgentConfig;
 }) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [input, setInput] = useState("");
@@ -113,7 +112,7 @@ export default function Chat({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agentId, sessionId, message: text }),
+        body: JSON.stringify({ agentId: agent.id, sessionId, message: text }),
         signal: controller.signal,
       });
       await consumeSSE(res, (chunk) => {
@@ -164,8 +163,9 @@ export default function Chat({
   return (
     <div className="chat-root">
       <header className="chat-header">
-        <strong>{agentName}</strong>
+        <strong>{agent.name}</strong>
         <span className="muted">会话 {sessionId}</span>
+        <SessionSettings sessionId={sessionId} agent={agent} />
       </header>
 
       <div className="chat-body">

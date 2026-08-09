@@ -51,4 +51,5 @@ npm run dev        # http://localhost:3000
 - [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（calculator/web_search/文件工具）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
 - [x] M2：会话与记忆（Session/SessionStore 内存 + SQLite 持久化、消息 id 稳定、窗口裁剪 + compaction 摘要、重启恢复）
 - [x] M3：应用层 v1（Next.js 对话页 + SSE 桥 + Agent 管理 UI 动态配置 + SQLite 存储，浏览器全流程验证）
-- [ ] M4：动态配置强化（per-session override、多用户模型隔离）
+- [x] M4：动态配置强化（会话级 model/tool 覆盖存 session.meta 每轮自动生效、请求级 override 优先、多会话隔离）
+- [ ] M5：增强（MCP 桥接、工具沙箱、可观测性、API key 加密）

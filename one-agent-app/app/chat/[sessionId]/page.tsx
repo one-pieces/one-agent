@@ -12,5 +12,5 @@ export default async function ChatPage({ params }: { params: Promise<{ sessionId
   const config = db.getAgent(session.agentId);
   if (!config) notFound();
 
-  return <Chat sessionId={sessionId} agentId={config.id} agentName={config.name} />;
+  return <Chat sessionId={sessionId} agent={config} />;
 }
