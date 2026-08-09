@@ -26,7 +26,8 @@
       "properties": {
         "strategy": { "enum": ["none", "window", "compaction"] },
         "maxMessages": { "type": "integer", "minimum": 1 },
-        "thresholdPercent": { "type": "number", "minimum": 0, "maximum": 1 }
+        "thresholdPercent": { "type": "number", "minimum": 0, "maximum": 1 },
+        "contextWindowTokens": { "type": "integer", "minimum": 1 }
       }
     },
     "maxIterations": { "type": "integer", "minimum": 1 },

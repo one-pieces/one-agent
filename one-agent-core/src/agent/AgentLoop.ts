@@ -1,5 +1,6 @@
 import type { Agent } from "./Agent.js";
 import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolSpec } from "../types.js";
+import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.js";
 
 export interface RunOptions {
   /** 每轮会话/请求级模型覆盖 → 动态切换模型的核心入口 */
@@ -44,6 +45,16 @@ export async function* agentLoop(
   const usageTotal = { input: 0, output: 0 };
 
   for (let i = 0; i < maxIter; i++) {
+    // 记忆：compaction 触发检查（基于估算 token 数；首轮也有数据时同样生效）
+    if (config.memory?.strategy === "compaction") {
+      const windowTokens = config.memory.contextWindowTokens ?? 32_000;
+      const threshold = Math.max(100, (config.memory.thresholdPercent ?? 0.75) * windowTokens);
+      if (estimateMessagesTokens(messages) > threshold) {
+        await compactMessages({ provider: agent.provider, modelConfig, messages });
+        // 摘要失败则跳过本次压缩，继续正常调用
+      }
+    }
+
     const tools = resolveEnabledTools(agent, config, opts.toolOverrides);
     const stream = agent.provider.chat({ messages, tools, config: modelConfig, signal: opts.signal });
 
@@ -100,7 +111,7 @@ export async function* agentLoop(
       });
     }
 
-    // 记忆：窗口裁剪（M1 只做 window；compaction 在 M2）
+    // 记忆：窗口裁剪（window 策略）
     trimMessages(messages, config);
   }
 
@@ -117,13 +128,4 @@ function resolveEnabledTools(
     .filter((t) => overrideMap.get(t.name) ?? t.enabled)
     .map((t) => agent.tools.get(t.name))
     .filter((t): t is ToolSpec => t !== undefined);
-}
-
-function trimMessages(messages: LLMMessage[], config: AgentConfig): void {
-  if (config.memory?.strategy !== "window" || !config.memory.maxMessages) return;
-  const max = config.memory.maxMessages;
-  if (messages.length <= max) return;
-  const system = messages.filter((m) => m.role === "system");
-  const rest = messages.filter((m) => m.role !== "system").slice(-(max - system.length));
-  messages.splice(0, messages.length, ...system, ...rest);
 }

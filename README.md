@@ -38,5 +38,5 @@ npm run chat
 
 - [x] M0：项目骨架 + contracts/ + Provider 层（OpenAI 兼容 + Anthropic）+ 测试 + 真实流式 demo
 - [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（calculator/web_search/文件工具）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
-- [ ] M2：会话与记忆（SessionStore、compaction）
+- [x] M2：会话与记忆（Session/SessionStore 内存 + SQLite 持久化、消息 id 稳定、窗口裁剪 + compaction 摘要、重启恢复）
 - [ ] M3：应用层 UI

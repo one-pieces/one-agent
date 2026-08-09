@@ -1,33 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { Agent } from "../../src/agent/index.js";
 import { calculatorTool, ToolRegistry } from "../../src/tools/index.js";
-import type { LanguageProvider } from "../../src/providers/index.js";
-import type { ChatOptions } from "../../src/providers/types.js";
+import { ScriptedProvider } from "../helpers/scripted-provider.js";
 import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.js";
 
-/** 脚本化 Provider：按调用次数返回预设 chunk 序列 */
-class ScriptedProvider implements LanguageProvider {
-  readonly kind = "openai-compatible" as const;
-  calls = 0;
-  receivedTools: unknown[][] = [];
-  script: Array<() => StreamChunk[]>;
-  onChat?: (opts: ChatOptions) => void;
-
-  constructor(script: Array<() => StreamChunk[]>, onChat?: (opts: ChatOptions) => void) {
-    this.script = script;
-    this.onChat = onChat;
-  }
-
-  async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
-    this.onChat?.(opts);
-    this.receivedTools.push(opts.tools ?? []);
-    const step = this.script[this.calls] ?? this.script[this.script.length - 1]!;
-    this.calls++;
-    for (const c of step()) yield c;
-  }
-}
-
-function makeAgent(provider: LanguageProvider, extra?: Partial<AgentConfig>) {
+function makeAgent(provider: ScriptedProvider, extra?: Partial<AgentConfig>) {
   const registry = new ToolRegistry();
   registry.add(calculatorTool);
   return new Agent(
@@ -165,7 +142,7 @@ describe("AgentLoop", () => {
     const agent = makeAgent(provider);
     await collect(agent, "第一句");
     await collect(agent, "第二句");
-    const history = agent.getHistory("t");
+    const history = await agent.getHistory("t");
     // system? 无；user/assistant/user/assistant
     expect(history.filter((m) => m.role === "user").map((m) => m.content)).toEqual(["第一句", "第二句"]);
     expect(history.filter((m) => m.role === "assistant").map((m) => m.content)).toEqual(["一", "二"]);

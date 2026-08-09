@@ -92,6 +92,7 @@ export interface AgentConfig {
     strategy: "none" | "window" | "compaction";
     maxMessages?: number;
     thresholdPercent?: number;
+    contextWindowTokens?: number;
   };
   maxIterations?: number;
   /** 顶层温度，覆盖 model.temperature（model 未显式设置时生效） */

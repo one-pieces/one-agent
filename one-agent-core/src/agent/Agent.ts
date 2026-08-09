@@ -3,28 +3,36 @@ import { createProvider, type LanguageProvider } from "../providers/index.js";
 import { ToolRegistry } from "../tools/index.js";
 import { validateAgentConfig } from "./config.js";
 import { agentLoop, type RunOptions } from "./AgentLoop.js";
+import {
+  InMemorySessionStore,
+  type Message,
+  type Session,
+  type SessionStore,
+  toLLMMessage,
+  toMessageWithStableId,
+} from "../session/index.js";
 
 /**
  * Agent 实例：动态配置的一等公民。
  * - new Agent(config) / updateConfig(patch) → 运行时热更新
  * - run(input) → AsyncIterable<StreamChunk>，多轮工具调用循环
- * - 每个实例持有独立 ToolRegistry + Provider
+ * - 会话持久化走 SessionStore（默认内存，可换 SQLite/Postgres → 重启可恢复）
  */
 export class Agent {
   private _config: AgentConfig;
   /** Provider 实例（无状态，可随时按 config 重建/替换） */
   provider: LanguageProvider;
   readonly tools: ToolRegistry;
-  /** 临时内存会话（M1 用；M2 将替换为 SessionStore） */
-  private conversations = new Map<string, LLMMessage[]>();
+  readonly sessionStore: SessionStore;
 
   constructor(
     config: AgentConfig,
-    deps?: { provider?: LanguageProvider; tools?: ToolRegistry },
+    deps?: { provider?: LanguageProvider; tools?: ToolRegistry; sessionStore?: SessionStore },
   ) {
     this._config = validateAgentConfig(config);
     this.provider = deps?.provider ?? createProvider(config.model.provider);
     this.tools = deps?.tools ?? new ToolRegistry();
+    this.sessionStore = deps?.sessionStore ?? new InMemorySessionStore();
   }
 
   getConfig(): AgentConfig {
@@ -48,30 +56,52 @@ export class Agent {
 
   /**
    * 运行一轮对话。
-   * - input 为 string：追加到当前会话（sessionId 默认 "default"）历史后运行
+   * - input 为 string：从 SessionStore 加载历史，追加用户消息后运行
    * - input 为 LLMMessage[]：作为完整上下文直接运行（不合并历史，测试/定制用）
+   * 运行完成后（含 done）自动持久化会话。
    */
   run(input: string | LLMMessage[], opts: RunOptions = {}): AsyncIterable<StreamChunk> {
-    const sessionId = opts.sessionId ?? "default";
-    const history = this.conversations.get(sessionId) ?? [];
-    const messages: LLMMessage[] =
-      typeof input === "string" ? [...history, { role: "user", content: input }] : input.map((m) => ({ ...m }));
-
-    const loop = agentLoop(this, messages, opts);
     const agent = this;
+    const sessionId = opts.sessionId ?? "default";
+    const now = () => new Date().toISOString();
+
     return (async function* () {
+      const existing = await agent.sessionStore.getSession(sessionId);
+      const history: Message[] = existing?.messages ?? [];
+
+      const messages: LLMMessage[] =
+        typeof input === "string"
+          ? [...history.map(toLLMMessage), { role: "user", content: input }]
+          : input.map((m) => ({ ...m }));
+
+      const loop = agentLoop(agent, messages, opts);
       for await (const chunk of loop) yield chunk;
-      // 正常跑完（含 done）→ 保存会话；error/maxIterations 中断则不保存
-      agent.conversations.set(sessionId, messages);
+
+      // 正常完成 → 持久化（含 system 指令、工具调用、摘要）
+      const timestamp = now();
+      const session: Session = {
+        id: sessionId,
+        agentId: agent.getConfig().id,
+        messages: messages.map((m) => toMessageWithStableId(m, history, timestamp)),
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+        meta: existing?.meta,
+      };
+      await agent.sessionStore.saveSession(session);
     })();
   }
 
-  /** 查看某会话当前历史（临时内存会话，M2 会换 SessionStore） */
-  getHistory(sessionId = "default"): LLMMessage[] {
-    return structuredClone(this.conversations.get(sessionId) ?? []);
+  /** 读取会话历史（持久化消息） */
+  async getHistory(sessionId = "default"): Promise<Message[]> {
+    const s = await this.sessionStore.getSession(sessionId);
+    return s?.messages ?? [];
   }
 
-  clearSession(sessionId = "default"): void {
-    this.conversations.delete(sessionId);
+  async clearSession(sessionId = "default"): Promise<void> {
+    await this.sessionStore.deleteSession(sessionId);
+  }
+
+  async listSessions(): Promise<Session[]> {
+    return this.sessionStore.listSessions(this._config.id);
   }
 }

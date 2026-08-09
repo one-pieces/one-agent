@@ -31,4 +31,4 @@ for (const q of ["算一下 2^10", "把刚才的结果加 5"]) {
   }
   console.log(`Q: ${q}\nA: ${text.trim()}\n`);
 }
-console.log("历史条数:", agent.getHistory().length);
+console.log("历史条数:", (await agent.getHistory()).length);

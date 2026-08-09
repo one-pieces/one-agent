@@ -21,6 +21,7 @@ export const agentConfigSchema = z.object({
       strategy: z.enum(["none", "window", "compaction"]),
       maxMessages: z.number().int().positive().optional(),
       thresholdPercent: z.number().min(0).max(1).optional(),
+      contextWindowTokens: z.number().int().positive().optional(),
     })
     .optional(),
   maxIterations: z.number().int().min(1).optional(),
