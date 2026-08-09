@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://one-agent.dev/schemas/agent-config.schema.json",
+  "title": "AgentConfig",
+  "description": "Agent 配置（语言无关契约 v0.1）。TS 侧 zod 生成/消费，Python 侧 pydantic 消费。动态配置的一等数据。",
+  "type": "object",
+  "required": ["id", "name", "instructions", "model", "tools"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "instructions": { "type": "string" },
+    "model": { "$ref": "#/$defs/providerConfig" },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "enabled"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "enabled": { "type": "boolean" }
+        }
+      }
+    },
+    "memory": {
+      "type": "object",
+      "properties": {
+        "strategy": { "enum": ["none", "window", "compaction"] },
+        "maxMessages": { "type": "integer", "minimum": 1 },
+        "thresholdPercent": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "maxIterations": { "type": "integer", "minimum": 1 },
+    "temperature": { "type": "number" }
+  },
+  "$defs": {
+    "providerConfig": {
+      "type": "object",
+      "required": ["provider", "modelId"],
+      "properties": {
+        "provider": { "enum": ["openai-compatible", "anthropic"] },
+        "baseUrl": { "type": "string" },
+        "modelId": { "type": "string", "minLength": 1 },
+        "apiKeyRef": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "temperature": { "type": "number" },
+        "maxTokens": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

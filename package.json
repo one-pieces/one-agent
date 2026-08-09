@@ -1,0 +1,18 @@
+{
+  "name": "one-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "one-agent: 从底层 LLM 接口开始的自研 agent 内核 + Next.js 应用层（根目录多项目文件夹结构）",
+  "scripts": {
+    "dev": "concurrently -n app,core -c blue,green \"npm --prefix one-agent-app run dev\" \"npm --prefix one-agent-core run dev\"",
+    "dev:app": "npm --prefix one-agent-app run dev",
+    "dev:core": "npm --prefix one-agent-core run dev",
+    "test": "npm --prefix one-agent-core run test",
+    "test:watch": "npm --prefix one-agent-core run test:watch",
+    "typecheck": "npm --prefix one-agent-core run typecheck",
+    "demo": "npm --prefix one-agent-core run demo"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
