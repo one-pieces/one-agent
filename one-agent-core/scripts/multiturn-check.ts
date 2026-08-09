@@ -1,5 +1,5 @@
 /** 一次性验证：真实模型 + 多轮历史连续性（calculator 引用上一轮结果） */
-import { Agent, ToolRegistry, builtinTools } from "../src/index.js";
+import { Agent, ToolRegistry, builtinTools } from "../src/index.ts";
 
 const registry = new ToolRegistry();
 for (const t of builtinTools) registry.add(t);

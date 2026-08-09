@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolSpec } from "../types.js";
+import type { ToolSpec } from "../types.ts";
 
 /**
  * 用 zod 定义工具：schema 用于「校验 + 生成 JSON Schema 发给 LLM」。

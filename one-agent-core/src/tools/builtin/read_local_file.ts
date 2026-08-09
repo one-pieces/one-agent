@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { readFile } from "node:fs/promises";
-import { defineTool } from "../define.js";
+import { defineTool } from "../define.ts";
 
 export const readLocalFileTool = defineTool({
   name: "read_local_file",

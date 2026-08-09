@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool } from "../define.js";
+import { defineTool } from "../define.ts";
 
 /**
  * 安全算术表达式求值（无 eval）。

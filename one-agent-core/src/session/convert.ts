@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { LLMMessage } from "../types.js";
-import type { Message } from "./types.js";
+import type { LLMMessage } from "../types.ts";
+import type { Message } from "./types.ts";
 
 /** 持久化 Message → 内核 LLMMessage（去掉 id/时间戳） */
 export function toLLMMessage(m: Message): LLMMessage {

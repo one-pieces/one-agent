@@ -1,4 +1,4 @@
-import type { LLMMessage, ProviderConfig, StreamChunk, ToolSpec } from "../types.js";
+import type { LLMMessage, ProviderConfig, StreamChunk, ToolSpec } from "../types.ts";
 
 /** chat 调用参数：messages / tools / config 每次都传入 → 支持运行时动态配置 */
 export interface ChatOptions {

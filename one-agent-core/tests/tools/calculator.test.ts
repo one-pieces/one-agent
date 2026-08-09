@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluate, calculatorTool } from "../../src/tools/index.js";
+import { evaluate, calculatorTool } from "../../src/tools/index.ts";
 
 describe("evaluate（安全表达式求值）", () => {
   it("四则运算与优先级", () => {

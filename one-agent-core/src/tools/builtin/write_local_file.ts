@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
-import { defineTool } from "../define.js";
+import { defineTool } from "../define.ts";
 
 export const writeLocalFileTool = defineTool({
   name: "write_local_file",

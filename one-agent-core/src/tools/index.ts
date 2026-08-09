@@ -1,4 +1,4 @@
-export { ToolRegistry, ToolRegistryError } from "./ToolRegistry.js";
-export { defineTool } from "./define.js";
-export { builtinTools } from "./builtin/index.js";
-export * from "./builtin/index.js";
+export { ToolRegistry, ToolRegistryError } from "./ToolRegistry.ts";
+export { defineTool } from "./define.ts";
+export { builtinTools } from "./builtin/index.ts";
+export * from "./builtin/index.ts";

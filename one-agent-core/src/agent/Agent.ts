@@ -1,8 +1,8 @@
-import type { AgentConfig, LLMMessage, StreamChunk } from "../types.js";
-import { createProvider, type LanguageProvider } from "../providers/index.js";
-import { ToolRegistry } from "../tools/index.js";
-import { validateAgentConfig } from "./config.js";
-import { agentLoop, type RunOptions } from "./AgentLoop.js";
+import type { AgentConfig, LLMMessage, StreamChunk } from "../types.ts";
+import { createProvider, type LanguageProvider } from "../providers/index.ts";
+import { ToolRegistry } from "../tools/index.ts";
+import { validateAgentConfig } from "./config.ts";
+import { agentLoop, type RunOptions } from "./AgentLoop.ts";
 import {
   InMemorySessionStore,
   type Message,
@@ -10,7 +10,7 @@ import {
   type SessionStore,
   toLLMMessage,
   toMessageWithStableId,
-} from "../session/index.js";
+} from "../session/index.ts";
 
 /**
  * Agent 实例：动态配置的一等公民。

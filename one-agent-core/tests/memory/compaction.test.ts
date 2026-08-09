@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { compactMessages, estimateTokens } from "../../src/memory/index.js";
-import type { ProviderConfig } from "../../src/index.js";
-import { ScriptedProvider } from "../helpers/scripted-provider.js";
-import type { LLMMessage } from "../../src/index.js";
+import { compactMessages, estimateTokens } from "../../src/memory/index.ts";
+import type { ProviderConfig } from "../../src/index.ts";
+import { ScriptedProvider } from "../helpers/scripted-provider.ts";
+import type { LLMMessage } from "../../src/index.ts";
 
 const modelConfig: ProviderConfig = {
   provider: "openai-compatible",

@@ -1,5 +1,5 @@
-export type { Message, Session } from "./types.js";
-export type { SessionStore } from "./interfaces.js";
-export { InMemorySessionStore } from "./InMemorySessionStore.js";
-export { SqliteSessionStore } from "./SqliteSessionStore.js";
-export { toLLMMessage, toMessageWithStableId, messageKey } from "./convert.js";
+export type { Message, Session } from "./types.ts";
+export type { SessionStore } from "./interfaces.ts";
+export { InMemorySessionStore } from "./InMemorySessionStore.ts";
+export { SqliteSessionStore } from "./SqliteSessionStore.ts";
+export { toLLMMessage, toMessageWithStableId, messageKey } from "./convert.ts";

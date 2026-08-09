@@ -2,11 +2,11 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent } from "../../src/agent/index.js";
-import { ToolRegistry, calculatorTool } from "../../src/tools/index.js";
-import { InMemorySessionStore, SqliteSessionStore } from "../../src/session/index.js";
-import { ScriptedProvider } from "../helpers/scripted-provider.js";
-import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.js";
+import { Agent } from "../../src/agent/index.ts";
+import { ToolRegistry, calculatorTool } from "../../src/tools/index.ts";
+import { InMemorySessionStore, SqliteSessionStore } from "../../src/session/index.ts";
+import { ScriptedProvider } from "../helpers/scripted-provider.ts";
+import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.ts";
 
 function makeAgent(provider: ScriptedProvider, store?: InstanceType<typeof InMemorySessionStore> | SqliteSessionStore, extra?: Partial<AgentConfig>) {
   const registry = new ToolRegistry();

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AgentConfig } from "../types.js";
+import type { AgentConfig } from "../types.ts";
 
 /** AgentConfig 的 zod schema（与 contracts/agent-config.schema.json 对应） */
 export const agentConfigSchema = z.object({

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { OpenAICompatibleProvider } from "../../src/providers/openai-compatible.js";
-import type { LLMMessage, ProviderConfig, StreamChunk } from "../../src/index.js";
-import { sseResponse } from "../helpers/sse.js";
+import { OpenAICompatibleProvider } from "../../src/providers/openai-compatible.ts";
+import type { LLMMessage, ProviderConfig, StreamChunk } from "../../src/index.ts";
+import { sseResponse } from "../helpers/sse.ts";
 
 const config: ProviderConfig = {
   provider: "openai-compatible",

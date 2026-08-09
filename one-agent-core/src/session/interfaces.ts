@@ -1,4 +1,4 @@
-import type { Session } from "./types.js";
+import type { Session } from "./types.ts";
 
 /**
  * 会话存储接口（内核只定义接口，实现可插拔：内存 / SQLite / Postgres…）

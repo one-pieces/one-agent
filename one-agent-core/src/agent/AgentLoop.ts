@@ -1,6 +1,6 @@
-import type { Agent } from "./Agent.js";
-import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolSpec } from "../types.js";
-import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.js";
+import type { Agent } from "./Agent.ts";
+import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolSpec } from "../types.ts";
+import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.ts";
 
 export interface RunOptions {
   /** 每轮会话/请求级模型覆盖 → 动态切换模型的核心入口 */

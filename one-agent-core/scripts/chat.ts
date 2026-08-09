@@ -5,7 +5,7 @@
  */
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { Agent, ToolRegistry, builtinTools } from "../src/index.js";
+import { Agent, ToolRegistry, builtinTools } from "../src/index.ts";
 
 function env(key: string): string | undefined {
   return process.env[key];

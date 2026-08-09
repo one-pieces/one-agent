@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ToolRegistry, ToolRegistryError, defineTool } from "../../src/tools/index.js";
+import { ToolRegistry, ToolRegistryError, defineTool } from "../../src/tools/index.ts";
 import { z } from "zod";
 
 const addTool = defineTool({

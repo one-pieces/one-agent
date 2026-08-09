@@ -1,3 +1,3 @@
-export { Agent } from "./Agent.js";
-export { agentLoop, type RunOptions } from "./AgentLoop.js";
-export { agentConfigSchema, validateAgentConfig } from "./config.js";
+export { Agent } from "./Agent.ts";
+export { agentLoop, type RunOptions } from "./AgentLoop.ts";
+export { agentConfigSchema, validateAgentConfig } from "./config.ts";

@@ -1,5 +1,5 @@
-import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk } from "../types.js";
-import type { LanguageProvider } from "../providers/index.js";
+import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk } from "../types.ts";
+import type { LanguageProvider } from "../providers/index.ts";
 
 /**
  * 粗略 token 估算：中文约 1 token/字，英文约 1 token/4 字符。

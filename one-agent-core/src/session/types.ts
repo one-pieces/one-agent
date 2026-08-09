@@ -1,4 +1,4 @@
-import type { LLMRole, ToolCall } from "../types.js";
+import type { LLMRole, ToolCall } from "../types.ts";
 
 /** 会话中的一条消息（带 id/时间戳，可持久化） */
 export interface Message {

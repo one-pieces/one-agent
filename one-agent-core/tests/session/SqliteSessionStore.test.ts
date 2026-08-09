@@ -2,7 +2,7 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SqliteSessionStore, type Session } from "../../src/session/index.js";
+import { SqliteSessionStore, type Session } from "../../src/session/index.ts";
 
 const now = new Date().toISOString();
 function makeSession(id: string, agentId = "a"): Session {

@@ -1,8 +1,8 @@
 import { createParser } from "eventsource-parser";
-import type { ChatOptions, LanguageProvider } from "./types.js";
-import { ProviderError } from "./types.js";
-import type { LLMMessage, StreamChunk, ToolSpec } from "../types.js";
-import { safeParseJSON, trimTrailingSlash } from "../utils.js";
+import type { ChatOptions, LanguageProvider } from "./types.ts";
+import { ProviderError } from "./types.ts";
+import type { LLMMessage, StreamChunk, ToolSpec } from "../types.ts";
+import { safeParseJSON, trimTrailingSlash } from "../utils.ts";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 

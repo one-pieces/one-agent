@@ -3,8 +3,8 @@
  * 默认连本机 Ollama（无需 key）；可用环境变量切换（见 .env.example）。
  * 用法：npm run demo  或  node scripts/demo.ts
  */
-import { createProvider } from "../src/index.js";
-import type { LLMMessage, ProviderConfig } from "../src/index.js";
+import { createProvider } from "../src/index.ts";
+import type { LLMMessage, ProviderConfig } from "../src/index.ts";
 
 function env(key: string): string | undefined {
   return process.env[key];

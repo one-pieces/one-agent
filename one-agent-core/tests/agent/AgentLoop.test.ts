@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { Agent } from "../../src/agent/index.js";
-import { calculatorTool, ToolRegistry } from "../../src/tools/index.js";
-import { ScriptedProvider } from "../helpers/scripted-provider.js";
-import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.js";
+import { Agent } from "../../src/agent/index.ts";
+import { calculatorTool, ToolRegistry } from "../../src/tools/index.ts";
+import { ScriptedProvider } from "../helpers/scripted-provider.ts";
+import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.ts";
 
 function makeAgent(provider: ScriptedProvider, extra?: Partial<AgentConfig>) {
   const registry = new ToolRegistry();

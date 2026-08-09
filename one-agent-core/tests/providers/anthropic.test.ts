@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { AnthropicProvider } from "../../src/providers/anthropic.js";
-import type { LLMMessage, ProviderConfig, StreamChunk } from "../../src/index.js";
-import { sseResponse } from "../helpers/sse.js";
+import { AnthropicProvider } from "../../src/providers/anthropic.ts";
+import type { LLMMessage, ProviderConfig, StreamChunk } from "../../src/index.ts";
+import { sseResponse } from "../helpers/sse.ts";
 
 const config: ProviderConfig = {
   provider: "anthropic",

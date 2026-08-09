@@ -12,13 +12,12 @@
     "src"
   ],
   "scripts": {
-    "dev": "node --watch --env-file-if-exists=.env --import tsx scripts/demo.ts",
-    "demo": "node --env-file-if-exists=.env --import tsx scripts/demo.ts",
-    "chat": "node --env-file-if-exists=.env --import tsx scripts/chat.ts",
+    "dev": "node --watch --env-file-if-exists=.env scripts/demo.ts",
+    "demo": "node --env-file-if-exists=.env scripts/demo.ts",
+    "chat": "node --env-file-if-exists=.env scripts/chat.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
     "node": ">=24"

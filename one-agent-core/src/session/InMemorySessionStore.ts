@@ -1,5 +1,5 @@
-import type { Session } from "./types.js";
-import type { SessionStore } from "./interfaces.js";
+import type { Session } from "./types.ts";
+import type { SessionStore } from "./interfaces.ts";
 
 /** 内存会话存储（默认实现；进程重启即丢失） */
 export class InMemorySessionStore implements SessionStore {

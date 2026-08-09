@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InMemorySessionStore, type Session } from "../../src/session/index.js";
+import { InMemorySessionStore, type Session } from "../../src/session/index.ts";
 
 const now = new Date().toISOString();
 

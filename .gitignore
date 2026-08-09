@@ -10,3 +10,4 @@ out/
 *.log
 coverage/
 .vercel
+data/

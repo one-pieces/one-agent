@@ -1,10 +1,10 @@
-import type { ToolSpec } from "../../types.js";
-import { calculatorTool } from "./calculator.js";
-import { readLocalFileTool } from "./read_local_file.js";
-import { writeLocalFileTool } from "./write_local_file.js";
-import { listLocalDirTool } from "./list_local_dir.js";
-import { webSearchTool } from "./web_search.js";
-import { runLocalCommandTool } from "./run_local_command.js";
+import type { ToolSpec } from "../../types.ts";
+import { calculatorTool } from "./calculator.ts";
+import { readLocalFileTool } from "./read_local_file.ts";
+import { writeLocalFileTool } from "./write_local_file.ts";
+import { listLocalDirTool } from "./list_local_dir.ts";
+import { webSearchTool } from "./web_search.ts";
+import { runLocalCommandTool } from "./run_local_command.ts";
 
 /** 内置工具全集（按需注册进 ToolRegistry） */
 export const builtinTools: ToolSpec[] = [
@@ -16,9 +16,9 @@ export const builtinTools: ToolSpec[] = [
   runLocalCommandTool,
 ];
 
-export { calculatorTool, evaluate } from "./calculator.js";
-export { readLocalFileTool } from "./read_local_file.js";
-export { writeLocalFileTool } from "./write_local_file.js";
-export { listLocalDirTool } from "./list_local_dir.js";
-export { webSearchTool } from "./web_search.js";
-export { runLocalCommandTool } from "./run_local_command.js";
+export { calculatorTool, evaluate } from "./calculator.ts";
+export { readLocalFileTool } from "./read_local_file.ts";
+export { writeLocalFileTool } from "./write_local_file.ts";
+export { listLocalDirTool } from "./list_local_dir.ts";
+export { webSearchTool } from "./web_search.ts";
+export { runLocalCommandTool } from "./run_local_command.ts";

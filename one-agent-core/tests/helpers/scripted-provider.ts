@@ -1,6 +1,6 @@
-import type { LanguageProvider } from "../../src/providers/index.js";
-import type { ChatOptions } from "../../src/providers/types.js";
-import type { StreamChunk } from "../../src/index.js";
+import type { LanguageProvider } from "../../src/providers/index.ts";
+import type { ChatOptions } from "../../src/providers/types.ts";
+import type { StreamChunk } from "../../src/index.ts";
 
 /** 脚本化 Provider：按调用次数返回预设 chunk 序列（超长时重复最后一步） */
 export class ScriptedProvider implements LanguageProvider {

@@ -1,4 +1,4 @@
-import type { ToolCall, ToolContext, ToolResult, ToolSpec } from "../types.js";
+import type { ToolCall, ToolContext, ToolResult, ToolSpec } from "../types.ts";
 
 export class ToolRegistryError extends Error {
   constructor(message: string) {

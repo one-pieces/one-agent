@@ -34,9 +34,21 @@ npm run chat
 #   DEMO_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-xxx ANTHROPIC_MODEL=claude-sonnet-4-5 npm run demo
 ```
 
+## 启动 Web 应用（M3）
+
+```bash
+cd one-agent-app
+npm install
+npm run dev        # http://localhost:3000
+# 浏览器：新建 Agent（动态配置模型/工具）→ 详情页「新建对话」→ 流式对话（含工具调用卡片）
+```
+
+数据落在 `one-agent-app/data/`（agents 配置 + sessions 历史，SQLite，已 gitignore）。
+
 ## 状态
 
 - [x] M0：项目骨架 + contracts/ + Provider 层（OpenAI 兼容 + Anthropic）+ 测试 + 真实流式 demo
 - [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（calculator/web_search/文件工具）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
 - [x] M2：会话与记忆（Session/SessionStore 内存 + SQLite 持久化、消息 id 稳定、窗口裁剪 + compaction 摘要、重启恢复）
-- [ ] M3：应用层 UI
+- [x] M3：应用层 v1（Next.js 对话页 + SSE 桥 + Agent 管理 UI 动态配置 + SQLite 存储，浏览器全流程验证）
+- [ ] M4：动态配置强化（per-session override、多用户模型隔离）

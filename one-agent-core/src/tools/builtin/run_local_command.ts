@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { defineTool } from "../define.js";
+import { defineTool } from "../define.ts";
 
 const execAsync = promisify(exec);
 

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defineTool } from "../define.js";
+import { defineTool } from "../define.ts";
 
 interface SearchResult {
   title: string;

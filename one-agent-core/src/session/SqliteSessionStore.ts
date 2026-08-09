@@ -1,6 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
-import type { Session } from "./types.js";
-import type { SessionStore } from "./interfaces.js";
+import type { Session } from "./types.ts";
+import type { SessionStore } from "./interfaces.ts";
 
 /**
  * SQLite 会话存储（基于 Node 内置 node:sqlite，零第三方依赖）。
