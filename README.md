@@ -26,13 +26,17 @@ npm run demo
 # 或指定 DeepSeek / OpenAI 兼容端点：
 #   OPENAI_BASE_URL=https://api.deepseek.com/v1 OPENAI_API_KEY=sk-xxx OPENAI_MODEL=deepseek-chat npm run demo
 
-# 3. Anthropic 原生（需要 key）：
+# 3. 交互式多轮对话（M1：Agent + 内置工具 + 多轮工具调用）
+npm run chat
+#   试试：算一下 (1234*5678)/2 / 列出当前目录 / 搜索 2026 诺贝尔物理学奖
+
+# 4. Anthropic 原生（需要 key）：
 #   DEMO_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-xxx ANTHROPIC_MODEL=claude-sonnet-4-5 npm run demo
 ```
 
 ## 状态
 
 - [x] M0：项目骨架 + contracts/ + Provider 层（OpenAI 兼容 + Anthropic）+ 测试 + 真实流式 demo
-- [ ] M1：ToolRegistry + Agent + AgentLoop（规划中）
-- [ ] M2：会话与记忆
+- [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（calculator/web_search/文件工具）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
+- [ ] M2：会话与记忆（SessionStore、compaction）
 - [ ] M3：应用层 UI

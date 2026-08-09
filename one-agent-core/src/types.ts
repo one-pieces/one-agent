@@ -10,7 +10,7 @@ export type LLMRole = "system" | "user" | "assistant" | "tool";
 export interface LLMMessage {
   role: LLMRole;
   content: string;
-  /** assistant 消息发起的工具调用（M1 起使用） */
+  /** assistant 消息发起的工具调用 */
   toolCalls?: ToolCall[];
   /** tool 消息回执对应哪个工具调用 */
   toolCallId?: string;
@@ -26,8 +26,7 @@ export interface ToolCall {
 
 /**
  * 统一流式 chunk（内核 → 上层 / 前端，契约见 contracts/stream-protocol.md）
- * 顺序约定：text / tool_call 实时；tool_call 在 provider 流结束后聚合发出；
- * usage 在 done 前；done 永远最后。
+ * 顺序约定：text 实时；tool_call / tool_result 成对；usage 在 done 前；done 永远最后。
  */
 export type StreamChunk =
   | { type: "text"; delta: string }
@@ -37,12 +36,34 @@ export type StreamChunk =
   | { type: "error"; message: string }
   | { type: "done" };
 
-/** 工具定义（M1 会扩展 execute / meta 等字段） */
+/** 工具执行上下文 */
+export interface ToolContext {
+  cwd?: string;
+  signal?: AbortSignal;
+  /** 后续扩展：agentId / sessionId / 审批句柄 */
+}
+
+/** 工具执行结果 */
+export interface ToolResult {
+  ok: boolean;
+  output: unknown;
+  error?: string;
+}
+
+/** 工具定义 */
 export interface ToolSpec {
   name: string;
   description: string;
   /** JSON Schema（发给 LLM 的格式） */
   inputSchema: Record<string, unknown>;
+  execute(ctx: ToolContext, input: unknown): ToolResult | Promise<ToolResult>;
+  meta?: {
+    dangerous?: boolean;
+    timeoutMs?: number;
+    sandbox?: boolean;
+  };
+  /** 运行时入参校验器（由 defineTool 从 zod 生成），缺省则跳过校验 */
+  validateInput?: (input: unknown) => { ok: true; value: unknown } | { ok: false; error: string };
 }
 
 /** Provider 运行时配置 —— 每次 chat 调用可传不同值，天然支持动态配置 */
@@ -57,4 +78,22 @@ export interface ProviderConfig {
   maxTokens?: number;
   /** 附加请求头（透传） */
   extraHeaders?: Record<string, string>;
+}
+
+/** Agent 配置 —— 一等数据（JSON），可存 DB、可 UI 编辑、可运行时热更新 */
+export interface AgentConfig {
+  id: string;
+  name: string;
+  instructions: string;
+  model: ProviderConfig;
+  /** 工具启用开关（工具本体注册在 ToolRegistry） */
+  tools: Array<{ name: string; enabled: boolean }>;
+  memory?: {
+    strategy: "none" | "window" | "compaction";
+    maxMessages?: number;
+    thresholdPercent?: number;
+  };
+  maxIterations?: number;
+  /** 顶层温度，覆盖 model.temperature（model 未显式设置时生效） */
+  temperature?: number;
 }
