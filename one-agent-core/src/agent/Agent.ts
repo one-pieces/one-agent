@@ -27,10 +27,17 @@ export class Agent {
 
   constructor(
     config: AgentConfig,
-    deps?: { provider?: LanguageProvider; tools?: ToolRegistry; sessionStore?: SessionStore },
+    deps?: {
+      provider?: LanguageProvider;
+      tools?: ToolRegistry;
+      sessionStore?: SessionStore;
+      /** 注入自定义 fetch（日志/代理），缺省用全局 fetch */
+      fetchFn?: typeof fetch;
+    },
   ) {
     this._config = validateAgentConfig(config);
-    this.provider = deps?.provider ?? createProvider(config.model.provider);
+    this.provider =
+      deps?.provider ?? createProvider(config.model.provider, deps?.fetchFn ? { fetch: deps.fetchFn } : undefined);
     this.tools = deps?.tools ?? new ToolRegistry();
     this.sessionStore = deps?.sessionStore ?? new InMemorySessionStore();
   }

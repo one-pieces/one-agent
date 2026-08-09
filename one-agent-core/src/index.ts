@@ -10,4 +10,5 @@ export * from "./tools/index.ts";
 export * from "./agent/index.ts";
 export * from "./session/index.ts";
 export * from "./memory/index.ts";
+export * from "./mcp/index.ts";
 export { safeParseJSON, trimTrailingSlash } from "./utils.ts";

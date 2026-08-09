@@ -5,13 +5,21 @@ import { join } from "node:path";
 import { InProcessKernel } from "../lib/kernel";
 import type { AgentConfig, ChatOptions, LanguageProvider, StreamChunk } from "@one-agent/core";
 
-/** 记录每次模型调用参数的 Mock Provider */
+/** 记录每次模型调用参数的 Mock Provider；可选先发一个危险工具调用 */
 class RecordingProvider implements LanguageProvider {
   readonly kind = "openai-compatible" as const;
   calls: ChatOptions[] = [];
+  private emitToolCall: boolean;
+
+  constructor(emitToolCall = false) {
+    this.emitToolCall = emitToolCall;
+  }
 
   async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
     this.calls.push(opts);
+    if (this.emitToolCall) {
+      yield { type: "tool_call", id: "c1", name: "run_local_command", input: { command: "echo hi" } };
+    }
     yield { type: "text", delta: "ok" };
     yield { type: "usage", inputTokens: 1, outputTokens: 1 };
     yield { type: "done" };
@@ -35,10 +43,10 @@ const agentConfig: AgentConfig = {
 
 const tempDirs: string[] = [];
 
-function makeKernel() {
+function makeKernel(emitToolCall = false) {
   const dir = mkdtempSync(join(tmpdir(), "one-agent-kernel-"));
   tempDirs.push(dir);
-  const provider = new RecordingProvider();
+  const provider = new RecordingProvider(emitToolCall);
   const kernel = new InProcessKernel(join(dir, "sessions.db"), {
     providerFactory: () => provider,
   });
@@ -122,5 +130,47 @@ describe("InProcessKernel 会话覆盖（M4）", () => {
 
     await drain(kernel.runChat({ agentConfig, sessionId: session.id, message: "hi" }));
     expect(provider.calls[0]!.config.modelId).toBe("default-model");
+  });
+
+  it("onApproval 拒绝 → 危险工具不执行", async () => {
+    const { kernel, provider } = makeKernel(true);
+    const dangerousConfig: AgentConfig = {
+      ...agentConfig,
+      tools: [{ name: "run_local_command", enabled: true }],
+    };
+    const session = kernel.createSession("test-agent");
+    const chunks: StreamChunk[] = [];
+    for await (const c of kernel.runChat({
+      agentConfig: dangerousConfig,
+      sessionId: session.id,
+      message: "执行命令",
+      onApproval: () => false,
+    })) {
+      chunks.push(c);
+    }
+    const tr = chunks.find((c) => c.type === "tool_result") as Extract<StreamChunk, { type: "tool_result" }>;
+    expect(tr.ok).toBe(false);
+    expect(String(tr.output)).toContain("已拒绝");
+  });
+
+  it("onApproval 放行 → 危险工具执行（沙箱内 echo）", async () => {
+    const { kernel, provider } = makeKernel(true);
+    const dangerousConfig: AgentConfig = {
+      ...agentConfig,
+      tools: [{ name: "run_local_command", enabled: true }],
+    };
+    const session = kernel.createSession("test-agent");
+    const chunks: StreamChunk[] = [];
+    for await (const c of kernel.runChat({
+      agentConfig: dangerousConfig,
+      sessionId: session.id,
+      message: "执行命令",
+      onApproval: () => true,
+    })) {
+      chunks.push(c);
+    }
+    const tr = chunks.find((c) => c.type === "tool_result") as Extract<StreamChunk, { type: "tool_result" }>;
+    expect(tr.ok).toBe(true);
+    expect((tr.output as { stdout: string }).stdout.trim()).toBe("hi");
   });
 });

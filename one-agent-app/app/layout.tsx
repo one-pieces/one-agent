@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="nav-links">
             <Link href="/agents">Agents</Link>
             <Link href="/agents/new">新建 Agent</Link>
+            <Link href="/logs">请求日志</Link>
           </div>
         </nav>
         <main className="main">{children}</main>

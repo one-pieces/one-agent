@@ -13,7 +13,10 @@ import {
   type ProviderConfig,
   type Session,
   type StreamChunk,
+  type ToolCall,
+  type ToolSpec,
 } from "@one-agent/core";
+import { createLoggingFetch } from "./observability.ts";
 
 /** 会话级配置覆盖（存在 Session.meta，每轮自动生效）—— 多会话模型/工具隔离的核心 */
 export interface SessionOverrides {
@@ -40,7 +43,9 @@ export class InProcessKernel {
   ) {
     mkdirSync(dirname(sessionDbPath), { recursive: true });
     this.store = new SqliteSessionStore(sessionDbPath);
-    this.providerFactory = deps?.providerFactory ?? ((kind) => createProvider(kind));
+    // 默认注入日志型 fetch → 每次 LLM 请求记录到 /api/logs
+    this.providerFactory =
+      deps?.providerFactory ?? ((kind) => createProvider(kind, { fetch: createLoggingFetch() }));
   }
 
   private getOrCreate(config: AgentConfig): Agent {
@@ -74,6 +79,8 @@ export class InProcessKernel {
     signal?: AbortSignal;
     modelOverride?: Partial<ProviderConfig>;
     toolOverrides?: ToolOverride;
+    /** 危险工具审批：返回 false 拒绝（未提供则危险工具默认放行） */
+    onApproval?: (call: ToolCall, tool: ToolSpec) => boolean | Promise<boolean>;
   }): AsyncIterable<StreamChunk> {
     const session = await this.store.getSession(req.sessionId);
     const meta = (session?.meta ?? {}) as SessionOverrides;
@@ -87,6 +94,7 @@ export class InProcessKernel {
       signal: req.signal,
       ...(modelOverride ? { modelOverride } : {}),
       ...(toolOverrides ? { toolOverrides } : {}),
+      ...(req.onApproval ? { onApproval: req.onApproval } : {}),
     });
   }
 

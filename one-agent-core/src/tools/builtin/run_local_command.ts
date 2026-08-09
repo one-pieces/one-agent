@@ -17,7 +17,7 @@ export const runLocalCommandTool = defineTool({
     cwd: z.string().optional(),
     timeoutMs: z.number().int().positive().max(60_000).optional(),
   }),
-  meta: { dangerous: true, timeoutMs: 60_000 },
+  meta: { dangerous: true, sandbox: true, timeoutMs: 60_000 },
   async execute(_ctx, { command, cwd, timeoutMs = 30_000 }) {
     try {
       const { stdout, stderr } = await execAsync(command, {

@@ -1,3 +1,4 @@
+import { Worker } from "node:worker_threads";
 import type { ToolCall, ToolContext, ToolResult, ToolSpec } from "../types.ts";
 
 export class ToolRegistryError extends Error {
@@ -47,7 +48,7 @@ export class ToolRegistry {
   /**
    * 执行工具调用：
    * 1) 校验入参（zod validateInput，若有）
-   * 2) 执行工具
+   * 2) meta.sandbox → 独立 worker 线程执行（崩溃/超时隔离）
    * 3) 异常 → ok:false（不抛出，保证 loop 可继续）
    */
   async execute(ctx: ToolContext, call: ToolCall): Promise<ToolResult> {
@@ -61,6 +62,10 @@ export class ToolRegistry {
       input = v.value;
     }
 
+    if (tool.meta?.sandbox) {
+      return this.executeInSandbox(tool.name, input, tool.meta.timeoutMs);
+    }
+
     try {
       const result = await tool.execute(ctx, input);
       return result;
@@ -68,5 +73,32 @@ export class ToolRegistry {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, output: null, error: `工具 ${call.name} 执行异常：${message}` };
     }
+  }
+
+  /** 在 worker 线程执行内置工具：崩溃/超时不影响主进程 */
+  private executeInSandbox(name: string, input: unknown, timeoutMs = 15_000): Promise<ToolResult> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const worker = new Worker(new URL("./sandbox-worker.ts", import.meta.url), {
+        workerData: { name, input },
+      });
+      const done = (result: ToolResult) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(result);
+      };
+      const timer = setTimeout(() => {
+        void worker.terminate();
+        done({ ok: false, output: null, error: `工具 ${name} 超时（${timeoutMs}ms）` });
+      }, timeoutMs);
+      worker.on("message", (msg: ToolResult) => done(msg));
+      worker.on("error", (err) =>
+        done({ ok: false, output: null, error: `工具进程错误: ${err instanceof Error ? err.message : String(err)}` }),
+      );
+      worker.on("exit", (code) => {
+        if (code !== 0) done({ ok: false, output: null, error: `工具进程退出 code=${code}` });
+      });
+    });
   }
 }

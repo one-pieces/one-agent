@@ -45,6 +45,11 @@ function toAnthropicTool(t: ToolSpec): Record<string, unknown> {
  */
 export class AnthropicProvider implements LanguageProvider {
   readonly kind = "anthropic" as const;
+  private fetchImpl: typeof fetch;
+
+  constructor(opts?: { fetch?: typeof fetch }) {
+    this.fetchImpl = opts?.fetch ?? fetch;
+  }
 
   async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
     const { config, messages, tools, signal } = opts;
@@ -69,7 +74,7 @@ export class AnthropicProvider implements LanguageProvider {
 
     let res: Response;
     try {
-      res = await fetch(`${baseUrl}/v1/messages`, {
+      res = await this.fetchImpl(`${baseUrl}/v1/messages`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

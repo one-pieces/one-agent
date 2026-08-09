@@ -53,6 +53,11 @@ function toOpenAITool(t: ToolSpec): Record<string, unknown> {
  */
 export class OpenAICompatibleProvider implements LanguageProvider {
   readonly kind = "openai-compatible" as const;
+  private fetchImpl: typeof fetch;
+
+  constructor(opts?: { fetch?: typeof fetch }) {
+    this.fetchImpl = opts?.fetch ?? fetch;
+  }
 
   async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
     const { config, messages, tools, signal } = opts;
@@ -73,7 +78,7 @@ export class OpenAICompatibleProvider implements LanguageProvider {
 
     let res: Response;
     try {
-      res = await fetch(`${baseUrl}/chat/completions`, {
+      res = await this.fetchImpl(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "content-type": "application/json",

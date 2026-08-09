@@ -11,6 +11,12 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** 可观测/审计 hook：每次工具调用前触发 */
   onToolCall?: (call: ToolCall) => void | Promise<void>;
+  /**
+   * 危险工具审批 hook：工具标记 meta.dangerous 时调用。
+   * 返回 false → 拒绝执行（tool_result ok:false "已拒绝"）。
+   * 不提供则危险工具直接执行（默认放行）。
+   */
+  onApproval?: (call: ToolCall, tool: ToolSpec) => boolean | Promise<boolean>;
 }
 
 /**
@@ -97,6 +103,19 @@ export async function* agentLoop(
     for (const tc of toolCalls) {
       yield { type: "tool_call", id: tc.id, name: tc.name, input: tc.input };
       if (opts.onToolCall) await opts.onToolCall(tc);
+
+      const tool = agent.tools.get(tc.name);
+      const isDangerous = tool?.meta?.dangerous ?? false;
+      if (isDangerous && opts.onApproval) {
+        const approved = await opts.onApproval(tc, tool!);
+        if (!approved) {
+          const reason = "已拒绝：危险操作未获批准";
+          yield { type: "tool_result", id: tc.id, ok: false, output: reason };
+          messages.push({ role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id });
+          continue;
+        }
+      }
+
       const result = await agent.tools.execute({}, tc);
       yield {
         type: "tool_result",

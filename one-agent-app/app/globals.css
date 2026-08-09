@@ -386,3 +386,19 @@ h3 {
 .session-item:hover {
   border-color: var(--primary);
 }
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.log-table th,
+.log-table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.log-table th {
+  color: var(--muted);
+  font-weight: 500;
+}
