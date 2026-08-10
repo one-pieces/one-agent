@@ -5,7 +5,8 @@ import Chat from "@/components/Chat";
 
 export const dynamic = "force-dynamic";
 
-export default async function ChatPage({ params }: { params: Promise<{ sessionId: string }> }) {
+/** /chat/session/[sessionId] 聊天页 */
+export default async function ChatSessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
   const session = await kernel.getSession(sessionId);
   if (!session) notFound();

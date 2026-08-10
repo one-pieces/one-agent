@@ -40,8 +40,10 @@ npm run chat
 cd one-agent-app
 npm install
 npm run dev        # http://localhost:3000
-# 浏览器：新建 Agent（动态配置模型/工具）→ 详情页「新建对话」→ 流式对话（含工具调用卡片）
+# 左侧图标导航（对话/Agents/日志）→ /chat 选择 Agent → 会话侧边栏 → 流式对话
 ```
+
+UI 对齐 eve-agent：左侧图标导航栏 + 可折叠会话侧边栏（显示当前 Agent 会话、自动标题）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 危险工具审批开关 + 消息删除。
 
 数据落在 `one-agent-app/data/`（agents 配置 + sessions 历史，SQLite，已 gitignore）。
 
@@ -53,4 +55,5 @@ npm run dev        # http://localhost:3000
 - [x] M3：应用层 v1（Next.js 对话页 + SSE 桥 + Agent 管理 UI 动态配置 + SQLite 存储，浏览器全流程验证）
 - [x] M4：动态配置强化（会话级 model/tool 覆盖存 session.meta 每轮自动生效、请求级 override 优先、多会话隔离）
 - [x] M5：增强（MCP 桥接动态接入外部工具、工具沙箱 worker_threads、危险工具审批默认拒绝、请求日志 /api/logs、API key AES-256-GCM 加密存储）
+- [x] UI 改造（对齐 eve-agent）：左侧图标导航 + 可折叠会话侧边栏（方案 A：当前 Agent 会话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 危险工具会话开关 + 消息删除 + 会话自动标题
 - [ ] M6（可选）：Python 内核（契约冻结后）

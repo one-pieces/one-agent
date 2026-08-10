@@ -21,6 +21,7 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
   );
   const [active, setActive] = useState(false);
   const [msg, setMsg] = useState("");
+  const [allowDangerous, setAllowDangerous] = useState(false);
 
   // 加载工具目录 + 会话已有覆盖
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
         const meta = (s?.meta ?? {}) as {
           modelOverride?: Partial<ProviderConfig>;
           toolOverrides?: Array<{ name: string; enabled: boolean }>;
+          allowDangerous?: boolean;
         };
         let has = false;
         if (meta.modelOverride) {
@@ -42,6 +44,10 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
         }
         if (meta.toolOverrides) {
           setToolFlags(Object.fromEntries(meta.toolOverrides.map((t) => [t.name, t.enabled])));
+          has = true;
+        }
+        if (meta.allowDangerous) {
+          setAllowDangerous(true);
           has = true;
         }
         setActive(has);
@@ -57,7 +63,7 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ modelOverride, toolOverrides }),
+        body: JSON.stringify({ modelOverride, toolOverrides, allowDangerous }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setActive(true);
@@ -73,11 +79,12 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ modelOverride: null, toolOverrides: null }),
+        body: JSON.stringify({ modelOverride: null, toolOverrides: null, allowDangerous: false }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setModel({ ...agent.model });
       setToolFlags(Object.fromEntries(agent.tools.map((t) => [t.name, t.enabled])));
+      setAllowDangerous(false);
       setActive(false);
       setMsg("✅ 已重置为 Agent 默认配置");
     } catch (err) {
@@ -138,6 +145,14 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
             ))}
           </div>
         )}
+
+        <label className="danger-toggle">
+          <input type="checkbox" checked={allowDangerous} onChange={(e) => setAllowDangerous(e.target.checked)} />
+          <span>
+            允许执行危险工具（run_local_command 等）
+            <small>默认拒绝；开启后本会话的模型可直接调用危险工具</small>
+          </span>
+        </label>
 
         <div className="actions">
           <button className="btn primary" onClick={() => void apply()}>

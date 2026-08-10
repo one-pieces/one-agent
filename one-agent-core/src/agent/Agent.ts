@@ -86,13 +86,19 @@ export class Agent {
 
       // 正常完成 → 持久化（含 system 指令、工具调用、摘要）
       const timestamp = now();
+      const existingMeta = (existing?.meta ?? {}) as Record<string, unknown>;
+      // 会话标题：首条用户消息前 60 字符（一次性生成）
+      if (!existingMeta.title) {
+        const firstUser = messages.find((m) => m.role === "user");
+        if (firstUser?.content.trim()) existingMeta.title = firstUser.content.trim().slice(0, 60);
+      }
       const session: Session = {
         id: sessionId,
         agentId: agent.getConfig().id,
         messages: messages.map((m) => toMessageWithStableId(m, history, timestamp)),
         createdAt: existing?.createdAt ?? timestamp,
         updatedAt: timestamp,
-        meta: existing?.meta,
+        meta: existingMeta,
       };
       await agent.sessionStore.saveSession(session);
     })();

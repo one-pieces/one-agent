@@ -32,6 +32,11 @@ export async function POST(request: Request) {
   const config = db.getAgent(agentId);
   if (!config) return Response.json({ error: `agent not found: ${agentId}` }, { status: 404 });
 
+  // 危险工具放行：请求级 allowDangerous 或会话 meta.allowDangerous
+  const session = await kernel.getSession(sessionId);
+  const metaAllow = (session?.meta as { allowDangerous?: boolean } | undefined)?.allowDangerous ?? false;
+  const allowDangerousEffective = allowDangerous === true || metaAllow === true;
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -43,8 +48,8 @@ export async function POST(request: Request) {
           signal: request.signal,
           modelOverride: modelOverride as never,
           toolOverrides: toolOverrides as never,
-          // 危险工具默认拒绝（Web 安全默认）；显式 allowDangerous=true 才放行
-          onApproval: () => allowDangerous === true,
+          // 危险工具默认拒绝（Web 安全默认）；请求级或会话级开启后才放行
+          onApproval: () => allowDangerousEffective,
         })) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
         }

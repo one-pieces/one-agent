@@ -18,7 +18,7 @@ export default function NewSessionButton({ agentId }: { agentId: string }) {
       });
       const session = await res.json();
       if (!res.ok) throw new Error(session.error ?? "创建失败");
-      router.push(`/chat/${session.id}`);
+      router.push(`/chat/session/${session.id}`);
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     } finally {

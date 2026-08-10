@@ -22,6 +22,8 @@ import { createLoggingFetch } from "./observability.ts";
 export interface SessionOverrides {
   modelOverride?: Partial<ProviderConfig>;
   toolOverrides?: Array<{ name: string; enabled: boolean }>;
+  /** 会话级：是否允许执行危险工具（Web 默认拒绝） */
+  allowDangerous?: boolean;
 }
 
 type ToolOverride = SessionOverrides["toolOverrides"];
@@ -98,10 +100,14 @@ export class InProcessKernel {
     });
   }
 
-  /** 更新会话覆盖（modelOverride/toolOverrides；传 null 清除对应项） */
+  /** 更新会话覆盖（modelOverride/toolOverrides；传 null 清除对应项；allowDangerous 单独处理） */
   async updateSessionOverrides(
     sessionId: string,
-    patch: { modelOverride?: Partial<ProviderConfig> | null; toolOverrides?: ToolOverride | null },
+    patch: {
+      modelOverride?: Partial<ProviderConfig> | null;
+      toolOverrides?: ToolOverride | null;
+      allowDangerous?: boolean;
+    },
   ): Promise<Session | null> {
     const session = await this.store.getSession(sessionId);
     if (!session) return null;
@@ -110,7 +116,21 @@ export class InProcessKernel {
     else if (patch.modelOverride !== undefined) meta.modelOverride = patch.modelOverride;
     if (patch.toolOverrides === null) delete meta.toolOverrides;
     else if (patch.toolOverrides !== undefined) meta.toolOverrides = patch.toolOverrides;
+    if (patch.allowDangerous !== undefined) {
+      if (patch.allowDangerous) meta.allowDangerous = true;
+      else delete meta.allowDangerous;
+    }
     session.meta = meta as Record<string, unknown>;
+    session.updatedAt = new Date().toISOString();
+    await this.store.saveSession(session);
+    return session;
+  }
+
+  /** 删除会话中的一条消息（用于前端消息删除） */
+  async removeMessage(sessionId: string, messageId: string): Promise<Session | null> {
+    const session = await this.store.getSession(sessionId);
+    if (!session) return null;
+    session.messages = session.messages.filter((m) => m.id !== messageId);
     session.updatedAt = new Date().toISOString();
     await this.store.saveSession(session);
     return session;
