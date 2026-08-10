@@ -129,6 +129,13 @@ code {
   flex-shrink: 0;
 }
 
+.sidebar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
 .sidebar-title {
   font-size: 13px;
   font-weight: 500;
@@ -136,6 +143,7 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .sidebar-header-actions {

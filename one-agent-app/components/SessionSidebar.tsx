@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquareIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, MessageSquareIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { Session } from "@one-agent/core";
 
 interface SessionSidebarProps {
@@ -71,6 +71,9 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
   if (collapsed) {
     return (
       <div className="sidebar sidebar-collapsed">
+        <button className="sidebar-icon-btn" onClick={() => router.push("/chat")} title="返回选择 Agent">
+          <ArrowLeftIcon size={18} />
+        </button>
         <button className="sidebar-icon-btn" onClick={() => setCollapsed(false)} title="展开侧边栏">
           <PanelLeftOpenIcon size={18} />
         </button>
@@ -86,9 +89,16 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <span className="sidebar-title">
-          {agentId ? <code>{agentId}</code> : "会话"}
-        </span>
+        <div className="sidebar-header-left">
+          {agentId && (
+            <button className="sidebar-icon-btn" onClick={() => router.push("/chat")} title="返回选择 Agent">
+              <ArrowLeftIcon size={16} />
+            </button>
+          )}
+          <span className="sidebar-title">
+            {agentId ? <code>{agentId}</code> : "会话"}
+          </span>
+        </div>
         <div className="sidebar-header-actions">
           <button className="sidebar-icon-btn" onClick={() => void handleNew()} disabled={!agentId} title="新建对话">
             <PlusIcon size={16} />
