@@ -1,7 +1,7 @@
 /**
  * M0 演示脚本：真实流式调用 LLM。
  * 默认连本机 Ollama（无需 key）；可用环境变量切换（见 .env.example）。
- * 用法：npm run demo  或  node scripts/demo.ts
+ * 用法：pnpm run demo  或  node scripts/demo.ts
  */
 import { createProvider } from "../src/index.ts";
 import type { LLMMessage, ProviderConfig } from "../src/index.ts";

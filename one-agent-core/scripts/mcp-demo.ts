@@ -1,6 +1,6 @@
 /**
  * M5 MCP 演示：连接本地 fixture MCP server（stdio）→ 工具动态注册 → 调用 → 断开。
- * 运行：npm run mcp-demo（需先启动 fixture：node scripts/mcp-fixture-server.ts 由本脚本自动拉起）
+ * 运行：pnpm run mcp-demo（需先启动 fixture：node scripts/mcp-fixture-server.ts 由本脚本自动拉起）
  */
 import { McpBridge, ToolRegistry } from "../src/index.ts";
 import { fileURLToPath } from "node:url";

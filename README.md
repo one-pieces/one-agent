@@ -19,27 +19,27 @@ one-agent/
 
 ```bash
 # 1. 安装内核依赖并跑测试（mock SSE，无需联网）
-cd one-agent-core && npm install && npm test
+cd one-agent-core && pnpm install && pnpm test
 
 # 2. 真实流式 demo（默认连本机 Ollama，无需 key）
-npm run demo
+pnpm run demo
 # 或指定 DeepSeek / OpenAI 兼容端点：
-#   OPENAI_BASE_URL=https://api.deepseek.com/v1 OPENAI_API_KEY=sk-xxx OPENAI_MODEL=deepseek-chat npm run demo
+#   OPENAI_BASE_URL=https://api.deepseek.com/v1 OPENAI_API_KEY=sk-xxx OPENAI_MODEL=deepseek-chat pnpm run demo
 
 # 3. 交互式多轮对话（M1：Agent + 内置工具 + 多轮工具调用）
-npm run chat
+pnpm run chat
 #   试试：算一下 (1234*5678)/2 / 列出当前目录 / 搜索 2026 诺贝尔物理学奖
 
 # 4. Anthropic 原生（需要 key）：
-#   DEMO_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-xxx ANTHROPIC_MODEL=claude-sonnet-4-5 npm run demo
+#   DEMO_PROVIDER=anthropic ANTHROPIC_API_KEY=sk-ant-xxx ANTHROPIC_MODEL=claude-sonnet-4-5 pnpm run demo
 ```
 
 ## 启动 Web 应用（M3）
 
 ```bash
 cd one-agent-app
-npm install
-npm run dev        # http://localhost:3000
+pnpm install
+pnpm run dev        # http://localhost:3000
 # 左侧图标导航（对话/Agents/日志）→ /chat 选择 Agent → 会话侧边栏 → 流式对话
 ```
 

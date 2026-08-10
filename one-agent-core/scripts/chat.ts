@@ -1,6 +1,6 @@
 /**
  * M1 交互式 CLI 对话：Agent + 内置工具 + 多轮工具调用（默认连本机 Ollama，免 key）。
- * 用法：npm run chat
+ * 用法：pnpm run chat
  * 试试：算一下 (1234*5678)/2 是什么 / 列出当前目录 / 搜索 2026 诺贝尔物理学奖
  */
 import { createInterface } from "node:readline/promises";
