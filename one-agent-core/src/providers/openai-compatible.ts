@@ -126,6 +126,8 @@ export class OpenAICompatibleProvider implements LanguageProvider {
             prompt_tokens?: number;
             completion_tokens?: number;
             prompt_tokens_details?: { cached_tokens?: number };
+            /** DeepSeek 风格：缓存命中的输入 token 数（官方 API 不返回 prompt_tokens_details，改用此字段） */
+            prompt_cache_hit_tokens?: number;
           };
         };
         try {
@@ -151,7 +153,8 @@ export class OpenAICompatibleProvider implements LanguageProvider {
         if (json.usage) {
           usage.input = json.usage.prompt_tokens;
           usage.output = json.usage.completion_tokens;
-          usage.cached = json.usage.prompt_tokens_details?.cached_tokens;
+          // OpenAI prompt_tokens_details.cached_tokens；DeepSeek 用 prompt_cache_hit_tokens（二者取其一）
+          usage.cached = json.usage.prompt_tokens_details?.cached_tokens ?? json.usage.prompt_cache_hit_tokens;
         }
       },
     });

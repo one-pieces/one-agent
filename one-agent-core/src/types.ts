@@ -14,6 +14,18 @@ export interface LLMMessage {
   toolCalls?: ToolCall[];
   /** tool 消息回执对应哪个工具调用 */
   toolCallId?: string;
+  /** 该条消息生成时消耗的 token 用量（仅 assistant 消息附带，用于持久化统计；不会发给 provider） */
+  usage?: TokenUsage;
+}
+
+/** token 用量（usage chunk / 消息级 / 会话级累计共用） */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** 缓存命中的输入 token 数（OpenAI prompt_tokens_details.cached_tokens / DeepSeek prompt_cache_hit_tokens / Anthropic cache_read_input_tokens） */
+  cachedTokens?: number;
+  /** 写入缓存的 token 数（Anthropic cache_creation_input_tokens，OpenAI 兼容一般无此值） */
+  cacheCreationTokens?: number;
 }
 
 /** 工具调用 */
@@ -36,7 +48,7 @@ export type StreamChunk =
       type: "usage";
       inputTokens: number;
       outputTokens: number;
-      /** 缓存命中的输入 token 数（OpenAI prompt_tokens_details.cached_tokens / Anthropic cache_read_input_tokens） */
+      /** 缓存命中的输入 token 数（OpenAI prompt_tokens_details.cached_tokens / DeepSeek prompt_cache_hit_tokens / Anthropic cache_read_input_tokens） */
       cachedTokens?: number;
       /** 写入缓存的 token 数（Anthropic cache_creation_input_tokens，OpenAI 兼容一般无此值） */
       cacheCreationTokens?: number;

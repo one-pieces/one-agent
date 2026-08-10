@@ -35,6 +35,7 @@ export function toMessageWithStableId(m: LLMMessage, existing: Message[], now: s
     content: m.content,
     ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
     ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+    ...(m.usage ? { usage: m.usage } : {}),
     createdAt: match?.createdAt ?? now,
   };
 }

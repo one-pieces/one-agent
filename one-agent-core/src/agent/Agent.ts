@@ -1,4 +1,4 @@
-import type { AgentConfig, LLMMessage, StreamChunk } from "../types.ts";
+import type { AgentConfig, LLMMessage, StreamChunk, TokenUsage } from "../types.ts";
 import { createProvider, type LanguageProvider } from "../providers/index.ts";
 import { ToolRegistry } from "../tools/index.ts";
 import { validateAgentConfig } from "./config.ts";
@@ -82,7 +82,19 @@ export class Agent {
           : input.map((m) => ({ ...m }));
 
       const loop = agentLoop(agent, messages, opts);
-      for await (const chunk of loop) yield chunk;
+      // 捕获本轮整轮用量（usage chunk 由 agentLoop 在 done 前聚合发出一次）→ 累加到会话 meta
+      let turnUsage: TokenUsage | undefined;
+      for await (const chunk of loop) {
+        if (chunk.type === "usage") {
+          turnUsage = {
+            inputTokens: chunk.inputTokens,
+            outputTokens: chunk.outputTokens,
+            ...(chunk.cachedTokens !== undefined ? { cachedTokens: chunk.cachedTokens } : {}),
+            ...(chunk.cacheCreationTokens !== undefined ? { cacheCreationTokens: chunk.cacheCreationTokens } : {}),
+          };
+        }
+        yield chunk;
+      }
 
       // 正常完成 → 持久化（含 system 指令、工具调用、摘要）
       const timestamp = now();
@@ -91,6 +103,20 @@ export class Agent {
       if (!existingMeta.title) {
         const firstUser = messages.find((m) => m.role === "user");
         if (firstUser?.content.trim()) existingMeta.title = firstUser.content.trim().slice(0, 60);
+      }
+      // token 用量：会话级累计持久化（刷新后前端可恢复统计；窗口裁剪/压缩丢消息也不丢总量）
+      if (turnUsage) {
+        const prev = (existingMeta.tokenUsage ?? {}) as Partial<TokenUsage>;
+        existingMeta.tokenUsage = {
+          inputTokens: (prev.inputTokens ?? 0) + turnUsage.inputTokens,
+          outputTokens: (prev.outputTokens ?? 0) + turnUsage.outputTokens,
+          ...(turnUsage.cachedTokens !== undefined
+            ? { cachedTokens: (prev.cachedTokens ?? 0) + turnUsage.cachedTokens }
+            : {}),
+          ...(turnUsage.cacheCreationTokens !== undefined
+            ? { cacheCreationTokens: (prev.cacheCreationTokens ?? 0) + turnUsage.cacheCreationTokens }
+            : {}),
+        };
       }
       const session: Session = {
         id: sessionId,

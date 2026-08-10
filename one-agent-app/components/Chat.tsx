@@ -110,7 +110,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
     setTokenUsage({ input: 0, output: 0, cached: 0, cacheCreation: 0 });
     fetch(`/api/sessions/${sessionId}`)
       .then((r) => r.json())
-      .then((session: { messages?: PersistedMessage[] }) => {
+      .then((session: { messages?: PersistedMessage[]; meta?: Record<string, unknown> }) => {
         if (cancelled || !session?.messages) return;
         const toolResults = new Map<string, { ok: boolean; output: unknown }>();
         for (const m of session.messages) {
@@ -143,6 +143,30 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
             }),
           }));
         setMessages(ui);
+
+        // 恢复已持久化的 token 统计：优先会话级累计（meta.tokenUsage，窗口裁剪/压缩后依然准确）；
+        // 旧会话无 meta 时回退到消息级 usage 求和
+        const metaUsage = session.meta?.tokenUsage as
+          | { inputTokens?: number; outputTokens?: number; cachedTokens?: number; cacheCreationTokens?: number }
+          | undefined;
+        const msgUsage = session.messages.reduce(
+          (acc, m) => {
+            if (m.usage) {
+              acc.input += m.usage.inputTokens;
+              acc.output += m.usage.outputTokens;
+              acc.cached += m.usage.cachedTokens ?? 0;
+              acc.cacheCreation += m.usage.cacheCreationTokens ?? 0;
+            }
+            return acc;
+          },
+          { input: 0, output: 0, cached: 0, cacheCreation: 0 },
+        );
+        setTokenUsage({
+          input: metaUsage?.inputTokens ?? msgUsage.input,
+          output: metaUsage?.outputTokens ?? msgUsage.output,
+          cached: metaUsage?.cachedTokens ?? msgUsage.cached,
+          cacheCreation: metaUsage?.cacheCreationTokens ?? msgUsage.cacheCreation,
+        });
       })
       .finally(() => {
         if (!cancelled) setLoadingHistory(false);

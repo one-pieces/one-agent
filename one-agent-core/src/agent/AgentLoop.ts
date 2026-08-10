@@ -48,7 +48,9 @@ export async function* agentLoop(
     ...opts.modelOverride,
   };
 
-  const usageTotal = { input: 0, output: 0 };
+  // 整轮累计（供最终 usage chunk）；turnUsage 为单次 LLM 调用用量（随 assistant 消息持久化）
+  const usageTotal = { input: 0, output: 0, cached: 0, cacheCreation: 0 };
+  let turnUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, cacheCreationTokens: 0 };
 
   for (let i = 0; i < maxIter; i++) {
     // 记忆：compaction 触发检查（基于估算 token 数；首轮也有数据时同样生效）
@@ -79,6 +81,12 @@ export async function* agentLoop(
         case "usage":
           usageTotal.input += chunk.inputTokens;
           usageTotal.output += chunk.outputTokens;
+          usageTotal.cached += chunk.cachedTokens ?? 0;
+          usageTotal.cacheCreation += chunk.cacheCreationTokens ?? 0;
+          turnUsage.inputTokens += chunk.inputTokens;
+          turnUsage.outputTokens += chunk.outputTokens;
+          turnUsage.cachedTokens += chunk.cachedTokens ?? 0;
+          turnUsage.cacheCreationTokens += chunk.cacheCreationTokens ?? 0;
           break;
         case "error":
           yield chunk;
@@ -89,12 +97,25 @@ export async function* agentLoop(
       }
     }
 
-    // assistant 消息（含工具调用）入历史 —— 无论是否带工具调用，保证多轮连续性
-    messages.push({ role: "assistant", content: text, toolCalls });
+    // assistant 消息（含工具调用）入历史 —— 无论是否带工具调用，保证多轮连续性；
+    // 附带本轮 LLM 调用用量 → 随会话持久化（前端刷新后恢复统计）
+    messages.push({
+      role: "assistant",
+      content: text,
+      toolCalls,
+      ...(turnUsage.inputTokens > 0 || turnUsage.outputTokens > 0 ? { usage: { ...turnUsage } } : {}),
+    });
+    turnUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, cacheCreationTokens: 0 };
 
     // 无工具调用 → 回答完成
     if (toolCalls.length === 0) {
-      yield { type: "usage", inputTokens: usageTotal.input, outputTokens: usageTotal.output };
+      yield {
+        type: "usage",
+        inputTokens: usageTotal.input,
+        outputTokens: usageTotal.output,
+        cachedTokens: usageTotal.cached,
+        cacheCreationTokens: usageTotal.cacheCreation,
+      };
       yield { type: "done" };
       return;
     }

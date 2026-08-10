@@ -1,4 +1,4 @@
-import type { LLMRole, ToolCall } from "../types.ts";
+import type { LLMRole, ToolCall, TokenUsage } from "../types.ts";
 
 /** 会话中的一条消息（带 id/时间戳，可持久化） */
 export interface Message {
@@ -8,12 +8,8 @@ export interface Message {
   toolCalls?: ToolCall[];
   toolCallId?: string;
   createdAt: string;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    cachedTokens?: number;
-    cacheCreationTokens?: number;
-  };
+  /** 该条消息消耗的 token 用量（assistant 消息由 AgentLoop 写入，随会话持久化） */
+  usage?: TokenUsage;
 }
 
 /** 会话（持久化单位） */

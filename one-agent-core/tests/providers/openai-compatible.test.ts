@@ -44,6 +44,23 @@ describe("OpenAICompatibleProvider", () => {
     expect(chunks.at(-1)?.type).toBe("done");
   });
 
+  it("DeepSeek 风格 usage（prompt_cache_hit_tokens）→ cachedTokens", async () => {
+    const sse = [
+      `data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null}]}\n\n`,
+      `data: {"id":"1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":66,"completion_tokens":5,"total_tokens":71,"prompt_cache_hit_tokens":54,"prompt_cache_miss_tokens":12,"prompt_cache_hit_percent":0.8181818181818182}}\n\n`,
+      `data: [DONE]\n\n`,
+    ];
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse(sse)));
+
+    const chunks = await collect(new OpenAICompatibleProvider());
+    const usage = chunks.find((c) => c.type === "usage") as Extract<StreamChunk, { type: "usage" }>;
+    expect(usage.inputTokens).toBe(66);
+    expect(usage.outputTokens).toBe(5);
+    expect(usage.cachedTokens).toBe(54);
+    expect(usage.cacheCreationTokens).toBeUndefined();
+    expect(chunks.at(-1)?.type).toBe("done");
+  });
+
   it("请求体与 URL 正确（含 tools 映射）", async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => sseResponse([`data: [DONE]\n\n`]));
     vi.stubGlobal("fetch", fetchMock);
