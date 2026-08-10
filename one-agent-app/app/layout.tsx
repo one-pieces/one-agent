@@ -9,7 +9,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("one-agent:theme")==="light"){document.documentElement.setAttribute("data-theme","light")}}catch(e){}`,
+          }}
+        />
+      </head>
       <body>
         <div className="app-shell">
           <AppNavbar />

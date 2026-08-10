@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BotIcon, FileTextIcon, MessageSquareIcon } from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems = [
   {
@@ -47,6 +48,8 @@ export default function AppNavbar() {
           </Link>
         );
       })}
+      <div className="app-nav-spacer" />
+      <ThemeToggle />
     </nav>
   );
 }

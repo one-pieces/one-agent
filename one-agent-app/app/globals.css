@@ -12,6 +12,26 @@
   --destructive: #e5534b;
   --ok: #3fb950;
   --warning: #d29922;
+  --code-bg: #0b0d13;
+  --code-inline-bg: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="light"] {
+  --background: #f6f7f9;
+  --foreground: #1b1e26;
+  --card: #ffffff;
+  --card-2: #eef0f4;
+  --border: #dfe3ea;
+  --muted-foreground: #5c6470;
+  --primary: #2f6fe0;
+  --primary-foreground: #fff;
+  --primary-dim: #2f6fe0;
+  --accent: #e6ebf3;
+  --destructive: #d6453d;
+  --ok: #2da44e;
+  --warning: #b8860b;
+  --code-bg: #eef0f4;
+  --code-inline-bg: rgba(0, 0, 0, 0.06);
 }
 
 * {
@@ -88,6 +108,16 @@ code {
 .app-nav-item.active {
   background: var(--accent);
   color: var(--foreground);
+}
+
+.app-nav-spacer {
+  flex: 1;
+}
+
+.app-nav-theme {
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .app-main {
@@ -470,7 +500,7 @@ code {
 }
 
 .bubble pre {
-  background: #0b0d13;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
@@ -480,7 +510,7 @@ code {
 }
 
 .bubble code {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--code-inline-bg);
   border-radius: 4px;
   padding: 1px 5px;
 }
@@ -575,7 +605,7 @@ code {
 }
 
 .tool-card pre {
-  background: #0b0d13;
+  background: var(--code-bg);
   border-radius: 6px;
   padding: 6px 8px;
   overflow-x: auto;
@@ -775,7 +805,7 @@ h3 {
 .btn.primary {
   background: var(--primary-dim);
   border-color: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
 }
 
 .btn.danger {
