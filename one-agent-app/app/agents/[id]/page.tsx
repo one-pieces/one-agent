@@ -13,7 +13,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   if (!config) notFound();
 
   return (
-    <div>
+    <div className="page">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h1>{config.name}</h1>
         <div style={{ display: "flex", gap: 8 }}>

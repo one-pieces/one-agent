@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default function AgentsPage() {
   const agents = db.listAgents();
   return (
-    <div>
+    <div className="page">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1>Agents</h1>
         <Link href="/agents/new" className="btn primary">

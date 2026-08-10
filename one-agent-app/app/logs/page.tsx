@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export default function LogsPage() {
   const logs = getRequestLogs();
   return (
-    <div>
+    <div className="page">
       <h1>请求日志（最近 {logs.length} 条）</h1>
       {logs.length === 0 ? (
         <p className="muted">暂无请求。发起一次对话后这里会出现 LLM 请求记录。</p>
