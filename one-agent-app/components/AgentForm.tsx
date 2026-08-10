@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AgentConfig } from "@one-agent/core";
+import Select from "@/components/Select";
 
 interface ToolInfo {
   name: string;
@@ -128,13 +129,14 @@ export default function AgentForm({
       <div className="grid2">
         <div className="field">
           <label>Provider</label>
-          <select
+          <Select
             value={form.model.provider}
-            onChange={(e) => setModel("provider", e.target.value as AgentConfig["model"]["provider"])}
-          >
-            <option value="openai-compatible">OpenAI 兼容（DeepSeek/Ollama/LM Studio…）</option>
-            <option value="anthropic">Anthropic 原生</option>
-          </select>
+            onChange={(v) => setModel("provider", v as AgentConfig["model"]["provider"])}
+            options={[
+              { value: "openai-compatible", label: "OpenAI 兼容（DeepSeek/Ollama/LM Studio…）" },
+              { value: "anthropic", label: "Anthropic 原生" },
+            ]}
+          />
         </div>
         <div className="field">
           <label>Base URL</label>
@@ -192,21 +194,22 @@ export default function AgentForm({
       <div className="grid2">
         <div className="field">
           <label>记忆策略</label>
-          <select
+          <Select
             value={form.memory?.strategy ?? "none"}
-            onChange={(e) =>
+            onChange={(v) =>
               set("memory", {
-                strategy: e.target.value as "none" | "window" | "compaction",
+                strategy: v as "none" | "window" | "compaction",
                 maxMessages: form.memory?.maxMessages,
                 thresholdPercent: form.memory?.thresholdPercent,
                 contextWindowTokens: form.memory?.contextWindowTokens,
               })
             }
-          >
-            <option value="none">none</option>
-            <option value="window">window（裁剪）</option>
-            <option value="compaction">compaction（摘要）</option>
-          </select>
+            options={[
+              { value: "none", label: "none" },
+              { value: "window", label: "window（裁剪）" },
+              { value: "compaction", label: "compaction（摘要）" },
+            ]}
+          />
         </div>
         <div className="field">
           <label>Max Iterations</label>
