@@ -21,9 +21,9 @@ afterEach(() => {
 });
 
 describe("AnthropicProvider", () => {
-  it("流式输出 text + usage + done", async () => {
+  it("流式输出 text + usage（含缓存命中/写入）+ done", async () => {
     const sse = [
-      `event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10,"output_tokens":1}}}\n\n`,
+      `event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":10,"output_tokens":1,"cache_read_input_tokens":4,"cache_creation_input_tokens":6}}}\n\n`,
       `event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n`,
       `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"你"}}\n\n`,
       `event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"好"}}\n\n`,
@@ -40,6 +40,8 @@ describe("AnthropicProvider", () => {
     const usage = chunks.find((c) => c.type === "usage") as Extract<StreamChunk, { type: "usage" }>;
     expect(usage.inputTokens).toBe(10);
     expect(usage.outputTokens).toBe(5);
+    expect(usage.cachedTokens).toBe(4);
+    expect(usage.cacheCreationTokens).toBe(6);
     expect(chunks.at(-1)?.type).toBe("done");
   });
 

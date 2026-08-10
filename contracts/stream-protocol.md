@@ -9,7 +9,7 @@
 | `text` | `delta: string` | 文本增量 |
 | `tool_call` | `id` / `name` / `input` | 完整工具调用（提供商会聚合分片后发出） |
 | `tool_result` | `id` / `ok` / `output` | 工具执行结果（由 AgentLoop 产生，M1） |
-| `usage` | `inputTokens` / `outputTokens` | token 用量（可能为 0 表示未知） |
+| `usage` | `inputTokens` / `outputTokens` / `cachedTokens?` / `cacheCreationTokens?` | token 用量（可能为 0 表示未知）；`cachedTokens` 缓存命中输入（OpenAI `prompt_tokens_details.cached_tokens` / Anthropic `cache_read_input_tokens`）；`cacheCreationTokens` 缓存写入（Anthropic `cache_creation_input_tokens`，OpenAI 兼容一般无） |
 | `error` | `message: string` | 错误（HTTP / 网络 / 流解析失败） |
 | `done` | — | 流结束 |
 
@@ -24,7 +24,7 @@ data: {"type":"tool_result","id":"call_1","ok":true,"output":"..."}
 
 data: {"type":"text","delta":"根据搜索结果..."}
 
-data: {"type":"usage","inputTokens":1234,"outputTokens":567}
+data: {"type":"usage","inputTokens":1234,"outputTokens":567,"cachedTokens":200}
 
 data: {"type":"done","sessionId":"s_1","messageId":"m_9"}
 ```

@@ -22,12 +22,12 @@ afterEach(() => {
 });
 
 describe("OpenAICompatibleProvider", () => {
-  it("流式输出 text + usage + done", async () => {
+  it("流式输出 text + usage（含缓存命中）+ done", async () => {
     const sse = [
       `data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":"你"},"finish_reason":null}]}\n\n`,
       `data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null}]}\n\n`,
       `data: {"id":"1","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n`,
-      `data: {"id":"1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3}}\n\n`,
+      `data: {"id":"1","object":"chat.completion.chunk","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":3,"prompt_tokens_details":{"cached_tokens":7}}}\n\n`,
       `data: [DONE]\n\n`,
     ];
     vi.stubGlobal("fetch", vi.fn(async () => sseResponse(sse)));
@@ -39,6 +39,8 @@ describe("OpenAICompatibleProvider", () => {
     const usage = chunks.find((c) => c.type === "usage") as Extract<StreamChunk, { type: "usage" }>;
     expect(usage.inputTokens).toBe(12);
     expect(usage.outputTokens).toBe(3);
+    expect(usage.cachedTokens).toBe(7);
+    expect(usage.cacheCreationTokens).toBeUndefined();
     expect(chunks.at(-1)?.type).toBe("done");
   });
 

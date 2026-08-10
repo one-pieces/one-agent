@@ -101,14 +101,21 @@ export class AnthropicProvider implements LanguageProvider {
     const toolAcc = new Map<number, ToolUseAcc>();
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
+    let cachedReadTokens: number | undefined;
+    let cachedCreationTokens: number | undefined;
 
     const parser = createParser({
       onEvent(event) {
         let json: {
           type?: string;
           index?: number;
-          usage?: { input_tokens?: number; output_tokens?: number };
-          message?: { usage?: { input_tokens?: number } };
+          usage?: {
+            input_tokens?: number;
+            output_tokens?: number;
+            cache_read_input_tokens?: number;
+            cache_creation_input_tokens?: number;
+          };
+          message?: { usage?: { input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } };
           content_block?: { type?: string; text?: string; id?: string; name?: string };
           delta?: { type?: string; text?: string; partial_json?: string; stop_reason?: string };
         };
@@ -120,6 +127,8 @@ export class AnthropicProvider implements LanguageProvider {
         switch (json.type) {
           case "message_start":
             inputTokens = json.message?.usage?.input_tokens;
+            cachedReadTokens = json.message?.usage?.cache_read_input_tokens;
+            cachedCreationTokens = json.message?.usage?.cache_creation_input_tokens;
             break;
           case "content_block_start": {
             const block = json.content_block ?? {};
@@ -178,7 +187,13 @@ export class AnthropicProvider implements LanguageProvider {
       return;
     }
 
-    yield { type: "usage", inputTokens: inputTokens ?? 0, outputTokens: outputTokens ?? 0 };
+    yield {
+      type: "usage",
+      inputTokens: inputTokens ?? 0,
+      outputTokens: outputTokens ?? 0,
+      cachedTokens: cachedReadTokens,
+      cacheCreationTokens: cachedCreationTokens,
+    };
     yield { type: "done" };
   }
 }

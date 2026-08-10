@@ -82,7 +82,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
   const [streaming, setStreaming] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [errorBanner, setErrorBanner] = useState("");
-  const [tokenUsage, setTokenUsage] = useState({ input: 0, output: 0 });
+  const [tokenUsage, setTokenUsage] = useState({ input: 0, output: 0, cached: 0, cacheCreation: 0 });
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -107,7 +107,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
     let cancelled = false;
     setLoadingHistory(true);
     setMessages([]);
-    setTokenUsage({ input: 0, output: 0 });
+    setTokenUsage({ input: 0, output: 0, cached: 0, cacheCreation: 0 });
     fetch(`/api/sessions/${sessionId}`)
       .then((r) => r.json())
       .then((session: { messages?: PersistedMessage[] }) => {
@@ -178,6 +178,17 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
         throw new Error(data?.error ?? `HTTP ${res.status}`);
       }
       await consumeSSE(res, (chunk) => {
+        // usage 是独立的 setState，不能放在 setMessages updater 内：
+        // React StrictMode 会 double-invoke updater，导致嵌套副作用执行两次（token 累加 2 倍）
+        if (chunk.type === "usage") {
+          setTokenUsage((u) => ({
+            input: u.input + chunk.inputTokens,
+            output: u.output + chunk.outputTokens,
+            cached: u.cached + (chunk.cachedTokens ?? 0),
+            cacheCreation: u.cacheCreation + (chunk.cacheCreationTokens ?? 0),
+          }));
+          return;
+        }
         setMessages((ms) => {
           const next = [...ms];
           const i = next.length - 1;
@@ -198,8 +209,6 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
                   : tc,
               ),
             };
-          } else if (chunk.type === "usage") {
-            setTokenUsage((u) => ({ input: u.input + chunk.inputTokens, output: u.output + chunk.outputTokens }));
           } else if (chunk.type === "error") {
             setErrorBanner(chunk.message);
             next[i] = { ...last, streaming: false };
@@ -250,8 +259,10 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
         </div>
         <div className="chat-header-right">
           {(tokenUsage.input > 0 || tokenUsage.output > 0) && (
-            <span className="token-badge" title="本会话累计 token 用量">
+            <span className="token-badge" title="本会话累计 token 用量（◎ 缓存命中 / ＋ 缓存写入）">
               ↑{tokenUsage.input.toLocaleString()} ↓{tokenUsage.output.toLocaleString()}
+              {tokenUsage.cached > 0 && <> ◎{tokenUsage.cached.toLocaleString()}</>}
+              {tokenUsage.cacheCreation > 0 && <> ＋{tokenUsage.cacheCreation.toLocaleString()}</>}
             </span>
           )}
           <SessionSettings sessionId={sessionId} agent={agent} />

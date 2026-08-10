@@ -8,7 +8,12 @@ export interface Message {
   toolCalls?: ToolCall[];
   toolCallId?: string;
   createdAt: string;
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedTokens?: number;
+    cacheCreationTokens?: number;
+  };
 }
 
 /** 会话（持久化单位） */

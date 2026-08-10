@@ -32,7 +32,15 @@ export type StreamChunk =
   | { type: "text"; delta: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "tool_result"; id: string; ok: boolean; output: unknown }
-  | { type: "usage"; inputTokens: number; outputTokens: number }
+  | {
+      type: "usage";
+      inputTokens: number;
+      outputTokens: number;
+      /** 缓存命中的输入 token 数（OpenAI prompt_tokens_details.cached_tokens / Anthropic cache_read_input_tokens） */
+      cachedTokens?: number;
+      /** 写入缓存的 token 数（Anthropic cache_creation_input_tokens，OpenAI 兼容一般无此值） */
+      cacheCreationTokens?: number;
+    }
   | { type: "error"; message: string }
   | { type: "done" };
 

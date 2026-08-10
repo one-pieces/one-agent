@@ -105,7 +105,7 @@ export class OpenAICompatibleProvider implements LanguageProvider {
     const decoder = new TextDecoder();
     let queue: StreamChunk[] = [];
     const toolAcc = new Map<number, ToolCallAcc>();
-    let usage: { input?: number; output?: number } = {};
+    let usage: { input?: number; output?: number; cached?: number } = {};
 
     const parser = createParser({
       onEvent(event) {
@@ -122,7 +122,11 @@ export class OpenAICompatibleProvider implements LanguageProvider {
             };
             finish_reason?: string | null;
           }>;
-          usage?: { prompt_tokens?: number; completion_tokens?: number };
+          usage?: {
+            prompt_tokens?: number;
+            completion_tokens?: number;
+            prompt_tokens_details?: { cached_tokens?: number };
+          };
         };
         try {
           json = JSON.parse(event.data);
@@ -147,6 +151,7 @@ export class OpenAICompatibleProvider implements LanguageProvider {
         if (json.usage) {
           usage.input = json.usage.prompt_tokens;
           usage.output = json.usage.completion_tokens;
+          usage.cached = json.usage.prompt_tokens_details?.cached_tokens;
         }
       },
     });
@@ -174,7 +179,12 @@ export class OpenAICompatibleProvider implements LanguageProvider {
     for (const acc of toolAcc.values()) {
       yield { type: "tool_call", id: acc.id, name: acc.name, input: safeParseJSON(acc.args) };
     }
-    yield { type: "usage", inputTokens: usage.input ?? 0, outputTokens: usage.output ?? 0 };
+    yield {
+      type: "usage",
+      inputTokens: usage.input ?? 0,
+      outputTokens: usage.output ?? 0,
+      cachedTokens: usage.cached,
+    };
     yield { type: "done" };
   }
 }
