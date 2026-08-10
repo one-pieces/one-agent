@@ -18,10 +18,11 @@ export const runLocalCommandTool = defineTool({
     timeoutMs: z.number().int().positive().max(60_000).optional(),
   }),
   meta: { dangerous: true, sandbox: true, timeoutMs: 60_000 },
-  async execute(_ctx, { command, cwd, timeoutMs = 30_000 }) {
+  async execute(ctx, { command, cwd, timeoutMs = 30_000 }) {
     try {
       const { stdout, stderr } = await execAsync(command, {
-        cwd,
+        // LLM 未显式传 cwd 时，默认在会话工作区（ctx.cwd）执行，与文件类工具保持同一基准
+        cwd: cwd ?? ctx.cwd,
         timeout: timeoutMs,
         maxBuffer: 10 * 1024 * 1024,
       });

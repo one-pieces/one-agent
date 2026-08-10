@@ -34,9 +34,9 @@ export async function PATCH(request: Request, { params }: Params) {
   return Response.json(session);
 }
 
-/** DELETE /api/sessions/[id] — 删除会话 */
+/** DELETE /api/sessions/[id] — 删除会话（含对应工作区文件） */
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
-  await kernel.store.deleteSession(id);
+  await kernel.deleteSession(id);
   return Response.json({ ok: true });
 }

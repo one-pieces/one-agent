@@ -1,5 +1,5 @@
 import type { Agent } from "./Agent.ts";
-import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolSpec } from "../types.ts";
+import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolContext, ToolSpec } from "../types.ts";
 import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.ts";
 
 export interface RunOptions {
@@ -9,6 +9,11 @@ export interface RunOptions {
   toolOverrides?: Array<{ name: string; enabled: boolean }>;
   sessionId?: string;
   signal?: AbortSignal;
+  /**
+   * 工具执行上下文的工作目录（文件类工具的相对路径基准）。
+   * 不传时回落 process.cwd() —— 应用层应显式传入会话工作区（如 data/workspace/{sessionId}）
+   */
+  cwd?: string;
   /** 可观测/审计 hook：每次工具调用前触发 */
   onToolCall?: (call: ToolCall) => void | Promise<void>;
   /**
@@ -121,6 +126,7 @@ export async function* agentLoop(
     }
 
     // 执行工具（当前串行；可后续并行化）
+    const toolCtx: ToolContext = { cwd: opts.cwd };
     for (const tc of toolCalls) {
       yield { type: "tool_call", id: tc.id, name: tc.name, input: tc.input };
       if (opts.onToolCall) await opts.onToolCall(tc);
@@ -137,7 +143,7 @@ export async function* agentLoop(
         }
       }
 
-      const result = await agent.tools.execute({}, tc);
+      const result = await agent.tools.execute(toolCtx, tc);
       yield {
         type: "tool_result",
         id: tc.id,

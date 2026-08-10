@@ -63,7 +63,7 @@ export class ToolRegistry {
     }
 
     if (tool.meta?.sandbox) {
-      return this.executeInSandbox(tool.name, input, tool.meta.timeoutMs);
+      return this.executeInSandbox(tool.name, input, tool.meta.timeoutMs, ctx.cwd);
     }
 
     try {
@@ -75,12 +75,12 @@ export class ToolRegistry {
     }
   }
 
-  /** 在 worker 线程执行内置工具：崩溃/超时不影响主进程 */
-  private executeInSandbox(name: string, input: unknown, timeoutMs = 15_000): Promise<ToolResult> {
+  /** 在 worker 线程执行内置工具：崩溃/超时不影响主进程（仅线程级隔离，不限制文件系统访问） */
+  private executeInSandbox(name: string, input: unknown, timeoutMs = 15_000, cwd?: string): Promise<ToolResult> {
     return new Promise((resolve) => {
       let settled = false;
       const worker = new Worker(new URL("./sandbox-worker.ts", import.meta.url), {
-        workerData: { name, input },
+        workerData: { name, input, cwd },
       });
       const done = (result: ToolResult) => {
         if (settled) return;

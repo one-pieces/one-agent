@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { rm } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   Agent,
@@ -38,6 +39,8 @@ export class InProcessKernel {
   private cache = new Map<string, { config: AgentConfig; agent: Agent }>();
   private providerFactory: (kind: ProviderConfig["provider"]) => LanguageProvider;
   readonly store: SqliteSessionStore;
+  /** 会话工作区根目录（与 sessions.db 同级：data/workspace）—— agent 文件类工具的相对路径基准 */
+  readonly workspaceRoot: string;
 
   constructor(
     sessionDbPath = join(process.cwd(), "data", "sessions.db"),
@@ -45,9 +48,20 @@ export class InProcessKernel {
   ) {
     mkdirSync(dirname(sessionDbPath), { recursive: true });
     this.store = new SqliteSessionStore(sessionDbPath);
+    this.workspaceRoot = join(dirname(sessionDbPath), "workspace");
     // 默认注入日志型 fetch → 每次 LLM 请求记录到 /api/logs
     this.providerFactory =
       deps?.providerFactory ?? ((kind) => createProvider(kind, { fetch: createLoggingFetch() }));
+  }
+
+  /** 会话级工作区路径；sessionId 带路径穿越时抛错（只允许落在 workspaceRoot 内） */
+  sessionWorkspacePath(sessionId: string): string {
+    const root = resolve(this.workspaceRoot);
+    const target = resolve(root, sessionId);
+    if (target === root || !target.startsWith(root + sep)) {
+      throw new Error(`非法会话工作区路径: ${sessionId}`);
+    }
+    return target;
   }
 
   private getOrCreate(config: AgentConfig): Agent {
@@ -91,9 +105,13 @@ export class InProcessKernel {
     const toolOverrides = req.toolOverrides ?? meta.toolOverrides;
 
     const agent = this.getOrCreate(req.agentConfig);
+    // 确保会话工作区已存在（run_local_command 等以它为 cwd 的工具需要目录就绪）
+    mkdirSync(this.sessionWorkspacePath(req.sessionId), { recursive: true });
     yield* agent.run(req.message, {
       sessionId: req.sessionId,
       signal: req.signal,
+      // 工具相对路径基准：会话级工作区（data/workspace/{sessionId}），避免 agent 文件写入服务进程目录
+      cwd: this.sessionWorkspacePath(req.sessionId),
       ...(modelOverride ? { modelOverride } : {}),
       ...(toolOverrides ? { toolOverrides } : {}),
       ...(req.onApproval ? { onApproval: req.onApproval } : {}),
@@ -134,6 +152,16 @@ export class InProcessKernel {
     session.updatedAt = new Date().toISOString();
     await this.store.saveSession(session);
     return session;
+  }
+
+  /** 删除会话：同时清理对应会话工作区文件（防止孤儿文件堆积） */
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.store.deleteSession(sessionId);
+    try {
+      await rm(this.sessionWorkspacePath(sessionId), { recursive: true, force: true });
+    } catch {
+      // 工作区不存在或路径非法 → 忽略（DB 记录已删除）
+    }
   }
 
   createSession(agentId: string): Session {

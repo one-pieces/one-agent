@@ -1,5 +1,6 @@
 import { describe, it, expect, afterAll } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InProcessKernel } from "../lib/kernel";
@@ -172,5 +173,27 @@ describe("InProcessKernel 会话覆盖（M4）", () => {
     const tr = chunks.find((c) => c.type === "tool_result") as Extract<StreamChunk, { type: "tool_result" }>;
     expect(tr.ok).toBe(true);
     expect((tr.output as { stdout: string }).stdout.trim()).toBe("hi");
+  });
+
+  it("deleteSession 同时清理会话工作区文件", async () => {
+    const { kernel } = makeKernel();
+    const session = kernel.createSession("test-agent");
+    // 模拟 agent 在工作区产出的文件
+    const ws = kernel.sessionWorkspacePath(session.id);
+    await mkdir(join(ws, "sub"), { recursive: true });
+    await writeFile(join(ws, "sub", "report.md"), "内容", "utf-8");
+    expect(existsSync(join(ws, "sub", "report.md"))).toBe(true);
+
+    await kernel.deleteSession(session.id);
+
+    expect(await kernel.getSession(session.id)).toBeNull();
+    expect(existsSync(ws)).toBe(false);
+  });
+
+  it("sessionWorkspacePath 拒绝路径穿越的 sessionId", () => {
+    const { kernel } = makeKernel();
+    expect(() => kernel.sessionWorkspacePath("..")).toThrow();
+    expect(() => kernel.sessionWorkspacePath("../../etc")).toThrow();
+    expect(kernel.sessionWorkspacePath("session-abc")).toBe(join(kernel.workspaceRoot, "session-abc"));
   });
 });
