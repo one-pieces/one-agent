@@ -1648,3 +1648,90 @@ h3 {
 .kb-dialog-wide {
   width: min(980px, 100%);
 }
+
+/* ═══ 分块+向量查看器表格（eve 风格）═══ */
+.kb-vec-table-wrap {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.kb-vec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.kb-vec-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: var(--card-2);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.kb-vec-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.kb-vec-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.kb-vec-table tbody tr:hover {
+  background: var(--card-2);
+}
+
+.kb-vec-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.kb-col-idx {
+  width: 44px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-col-src {
+  width: 140px;
+  max-width: 140px;
+  word-break: break-all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kb-col-emb {
+  width: 220px;
+  max-width: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  color: var(--primary);
+  word-break: break-all;
+}
+
+.kb-emb-preview {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.kb-cell-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.kb-cell-chars {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}

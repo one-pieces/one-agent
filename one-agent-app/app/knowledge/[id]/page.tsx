@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   Database,
-  ExternalLink,
   Eye,
   FileText,
   List,
@@ -73,7 +72,7 @@ export default function KnowledgeDetailPage() {
   const [buildProgress, setBuildProgress] = useState<Record<string, number>>({});
   const [buildFileId, setBuildFileId] = useState<string | null>(null);
 
-  // 向量索引查看器
+  // 向量/分块查看器（统一弹窗，eve 表格风格）
   const [vecOpen, setVecOpen] = useState(false);
   const [vecItems, setVecItems] = useState<VectorIndexItem[]>([]);
   const [vecTotal, setVecTotal] = useState(0);
@@ -82,11 +81,8 @@ export default function KnowledgeDetailPage() {
   const [vecSource, setVecSource] = useState("");
   const [vecLoading, setVecLoading] = useState(false);
   const [vecExpanded, setVecExpanded] = useState<string | null>(null);
-
-  // 分块查看器
-  const [chunksOpen, setChunksOpen] = useState(false);
-  const [chunksFile, setChunksFile] = useState<KnowledgeFile | null>(null);
-  const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
+  /** 当前查看的文件（null = 全库向量） */
+  const [viewerFile, setViewerFile] = useState<KnowledgeFile | null>(null);
 
   // 检索预览
   const [query, setQuery] = useState("");
@@ -216,12 +212,39 @@ export default function KnowledgeDetailPage() {
     }
   }
 
-  async function openVectorIndex(file?: KnowledgeFile) {
+  /** 打开统一查看器：file 给定 → 该文件的分块+向量（chunks API）；null → 全库向量索引（index API，分页） */
+  async function openViewer(file?: KnowledgeFile) {
     setVecOpen(true);
     setVecExpanded(null);
+    setViewerFile(file ?? null);
     setVecSource(file?.name ?? "");
-    await loadVectorIndex(0, file?.name ?? "");
+    if (file) {
+      await loadFileViewer(file);
+    } else {
+      await loadVectorIndex(0, "");
+    }
   }
+
+  /** 加载单个文件的分块+向量（无分页，chunks API 已带向量信息） */
+  const loadFileViewer = useCallback(
+    async (file: KnowledgeFile) => {
+      setVecLoading(true);
+      try {
+        const res = await fetch(`/api/knowledge/${id}/files/${file.id}/chunks`);
+        if (!res.ok) throw new Error("加载分块失败");
+        const data = await res.json();
+        setVecItems(data.items ?? []);
+        setVecTotal(data.total ?? 0);
+        setVecOffset(0);
+        setVecSources([]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setVecLoading(false);
+      }
+    },
+    [id],
+  );
 
   const loadVectorIndex = useCallback(
     async (offset: number, source = "") => {
@@ -244,16 +267,6 @@ export default function KnowledgeDetailPage() {
     },
     [id],
   );
-
-  async function openChunks(file: KnowledgeFile) {
-    setChunksFile(file);
-    setChunksOpen(true);
-    const res = await fetch(`/api/knowledge/${kb!.id}/files/${file.id}/chunks`);
-    if (res.ok) {
-      const data = await res.json();
-      setChunks(data.chunks ?? []);
-    }
-  }
 
   async function handleSearch() {
     const q = query.trim();
@@ -299,7 +312,7 @@ export default function KnowledgeDetailPage() {
           {kb.description && <p className="kb-header-desc">{kb.description}</p>}
         </div>
         <div className="kb-header-actions">
-          <button className="btn" onClick={() => void openVectorIndex()} title="查看向量索引">
+          <button className="btn" onClick={() => void openViewer()} title="查看向量索引">
             <List style={{ verticalAlign: -2, marginRight: 4 }} />
             向量索引（{indexedCount}）
           </button>
@@ -407,26 +420,33 @@ export default function KnowledgeDetailPage() {
                     <span className="muted kb-building-label">
                       <Loader2 className="kb-spin" /> 构建中…
                     </span>
-                  ) : f.indexStatus === "done" ? (
-                    <>
-                      <button className="btn btn-xs" onClick={() => void openVectorIndex(f)} title="查看该文件的向量索引">
-                        <Eye style={{ verticalAlign: -2, marginRight: 4 }} />查看索引
-                      </button>
-                      <button className="btn btn-xs" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="重新构建索引">
-                        <Database style={{ verticalAlign: -2, marginRight: 4 }} />重建
-                      </button>
-                      <button className="btn btn-xs" onClick={() => void handleDeleteIndex(f)} title="删除向量索引（文件保留）">
-                        删索引
-                      </button>
-                    </>
                   ) : (
-                    <button className="btn btn-xs primary" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="构建向量索引">
-                      <Database style={{ verticalAlign: -2, marginRight: 4 }} />新建索引
-                    </button>
+                    <>
+                      {f.indexStatus === "done" ? (
+                        <button className="btn btn-xs" onClick={() => void openViewer(f)} title="查看分块与向量">
+                          <Eye style={{ verticalAlign: -2, marginRight: 4 }} />查看
+                        </button>
+                      ) : (
+                        <button className="btn btn-xs" onClick={() => void openViewer(f)} title="查看文本分块">
+                          <Eye style={{ verticalAlign: -2, marginRight: 4 }} />分块
+                        </button>
+                      )}
+                      {f.indexStatus === "done" ? (
+                        <>
+                          <button className="btn btn-xs" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="重新构建索引">
+                            <Database style={{ verticalAlign: -2, marginRight: 4 }} />重建
+                          </button>
+                          <button className="btn btn-xs" onClick={() => void handleDeleteIndex(f)} title="删除向量索引（文件保留）">
+                            删索引
+                          </button>
+                        </>
+                      ) : (
+                        <button className="btn btn-xs primary" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="构建向量索引">
+                          <Database style={{ verticalAlign: -2, marginRight: 4 }} />新建索引
+                        </button>
+                      )}
+                    </>
                   )}
-                  <button className="btn btn-xs" onClick={() => void openChunks(f)} title="查看文本分块">
-                    <ExternalLink style={{ verticalAlign: -2, marginRight: 4 }} />分块
-                  </button>
                   <button
                     className="kb-file-delete"
                     onClick={() => void handleDeleteFile(f)}
@@ -497,43 +517,85 @@ export default function KnowledgeDetailPage() {
         </div>
       )}
 
-      {/* ═══ 向量索引查看器 Dialog ═══ */}
+      {/* ═══ 分块 + 向量查看器 Dialog（eve 表格风格）═══ */}
       {vecOpen && (
         <div className="kb-dialog">
           <div className="kb-dialog-content kb-dialog-wide">
             <div className="kb-dialog-head">
-              <h3 className="kb-dialog-title"><Database /> 向量索引（共 {vecTotal} 个向量）</h3>
+              <h3 className="kb-dialog-title">
+                {viewerFile ? <FileText /> : <Database />}
+                {viewerFile ? `分块与向量：${viewerFile.name}` : `向量索引（共 ${vecTotal} 个向量）`}
+              </h3>
               <button className="btn" onClick={() => setVecOpen(false)}>关闭</button>
             </div>
             <div className="kb-dialog-toolbar">
-              <select value={vecSource} onChange={(e) => { setVecSource(e.target.value); void loadVectorIndex(0, e.target.value); }}>
-                <option value="">全部来源</option>
-                {vecSources.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <span className="muted">{vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}</span>
+              {viewerFile ? (
+                <span className="muted">共 {vecTotal} 条{viewerFile.indexStatus === "done" ? "（含向量）" : "（未建索引，无向量）"}</span>
+              ) : (
+                <>
+                  <select value={vecSource} onChange={(e) => { setVecSource(e.target.value); void loadVectorIndex(0, e.target.value); }}>
+                    <option value="">全部来源</option>
+                    {vecSources.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <span className="muted">{vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}</span>
+                </>
+              )}
             </div>
             {vecLoading ? (
               <p className="muted kb-dialog-loading"><Loader2 className="kb-spin" /> 加载中…</p>
             ) : vecItems.length === 0 ? (
-              <p className="muted kb-dialog-empty">暂无向量（先为文件构建索引）</p>
+              <p className="muted kb-dialog-empty">暂无数据（先为文件构建索引）</p>
             ) : (
-              <div className="vec-list">
-                {vecItems.map((it) => (
-                  <div key={it.chunkId} className="vec-item">
-                    <div className="card-sub">
-                      【{it.fileName}】片段 {it.chunkIndex + 1} · 维度 {it.dim} · 向量 [{it.embeddingPreview.join(", ")}…]
-                      <button className="btn btn-xs" style={{ marginLeft: 8 }} onClick={() => setVecExpanded(vecExpanded === it.chunkId ? null : it.chunkId)}>
-                        {vecExpanded === it.chunkId ? "收起" : "查看"}
-                      </button>
-                    </div>
-                    {vecExpanded === it.chunkId && <p className="vec-content">{it.content}</p>}
-                  </div>
-                ))}
+              <div className="kb-vec-table-wrap">
+                <table className="kb-vec-table">
+                  <thead>
+                    <tr>
+                      <th className="kb-col-idx">#</th>
+                      {!viewerFile && <th className="kb-col-src">来源</th>}
+                      <th>内容</th>
+                      <th className="kb-col-emb">Embedding</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vecItems.map((it, idx) => {
+                      const isExpanded = vecExpanded === it.chunkId;
+                      const textPreview = it.content.length > 120 ? it.content.slice(0, 120) + "…" : it.content;
+                      return (
+                        <tr
+                          key={it.chunkId}
+                          className={isExpanded ? "kb-row-expanded" : ""}
+                          onClick={() => setVecExpanded(isExpanded ? null : it.chunkId)}
+                          title={it.content.length > 120 ? "点击展开/收起全文" : undefined}
+                        >
+                          <td className="kb-col-idx">{vecOffset + idx + 1}</td>
+                          {!viewerFile && <td className="kb-col-src">{it.fileName}</td>}
+                          <td>
+                            <p className="kb-cell-text">{isExpanded ? it.content : textPreview}</p>
+                            {it.content.length > 120 && (
+                              <span className="kb-cell-chars">{it.content.length} chars</span>
+                            )}
+                          </td>
+                          <td className="kb-col-emb">
+                            {it.dim > 0 ? (
+                              <>
+                                <span className="kb-emb-preview">[{it.embeddingPreview.join(", ")}, …]</span>
+                                <br />
+                                <span className="muted">dim={it.dim}</span>
+                              </>
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
-            {vecTotal > VEC_LIMIT && (
+            {!viewerFile && vecTotal > VEC_LIMIT && (
               <div className="actions" style={{ marginTop: 12 }}>
                 <button className="btn" disabled={vecOffset <= 0} onClick={() => void loadVectorIndex(Math.max(0, vecOffset - VEC_LIMIT), vecSource)}>
                   上一页
@@ -546,26 +608,6 @@ export default function KnowledgeDetailPage() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ 分块查看器 Dialog ═══ */}
-      {chunksOpen && chunksFile && (
-        <div className="kb-dialog">
-          <div className="kb-dialog-content">
-            <div className="kb-dialog-head">
-              <h3 className="kb-dialog-title"><FileText /> 分块查看：{chunksFile.name}（{chunks.length} 块）</h3>
-              <button className="btn" onClick={() => setChunksOpen(false)}>关闭</button>
-            </div>
-            <div className="vec-list">
-              {chunks.map((c) => (
-                <div key={c.id} className="vec-item">
-                  <div className="card-sub">片段 {c.chunkIndex + 1}</div>
-                  <p className="vec-content">{c.content}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

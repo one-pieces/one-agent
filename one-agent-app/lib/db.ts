@@ -294,11 +294,17 @@ export class AppDatabase {
     });
   }
 
-  /** 取单个文件的分块（查看分块） */
+  /** 取单个文件的分块（查看分块），LEFT JOIN 向量表：已建索引的分块带 dim/embedding */
   getChunksForFile(knowledgeBaseId: string, fileId: string): KnowledgeChunk[] {
     return this.db
       .prepare(
-        "SELECT id, knowledge_base_id AS knowledgeBaseId, file_id AS fileId, chunk_index AS chunkIndex, content FROM knowledge_chunks WHERE knowledge_base_id = ? AND file_id = ? ORDER BY chunk_index",
+        `SELECT c.id, c.knowledge_base_id AS knowledgeBaseId, c.file_id AS fileId,
+                c.chunk_index AS chunkIndex, c.content,
+                e.dim, e.embedding
+         FROM knowledge_chunks c
+         LEFT JOIN knowledge_embeddings e ON e.chunk_id = c.id
+         WHERE c.knowledge_base_id = ? AND c.file_id = ?
+         ORDER BY c.chunk_index`,
       )
       .all(knowledgeBaseId, fileId) as unknown as KnowledgeChunk[];
   }
@@ -468,6 +474,10 @@ export interface KnowledgeChunk {
   content: string;
   /** 来源文件名（联表附带） */
   fileName?: string;
+  /** 向量维度（分块已建索引时附带） */
+  dim?: number | null;
+  /** embedding JSON 数组字符串（分块已建索引时附带） */
+  embedding?: string | null;
 }
 
 /** 向量行：embedding + 联表附带的分块文本与来源 */
