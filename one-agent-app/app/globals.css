@@ -1166,6 +1166,13 @@ h3 {
   z-index: 1;
 }
 
+/* 关键：.card-main 允许收缩（内部 .card-sub 是 nowrap，min-width:auto 会撑爆 flex 行，
+   把右侧按钮组挤出卡片边界）；放行后 ellipsis 截断生效，按钮组回到卡片内右缘 */
+.kb-card > .card-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .kb-desc {
   margin: 4px 0 8px;
   font-size: 13px;
