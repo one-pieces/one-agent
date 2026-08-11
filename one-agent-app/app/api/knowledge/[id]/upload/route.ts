@@ -1,16 +1,15 @@
 import { db } from "@/lib/db";
+import { SUPPORTED_EXTS, extractFileText } from "@/lib/rag/file-text";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2MB
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB（PDF 可能比纯文本大）
 
 type Params = { params: Promise<{ id: string }> };
 
-const TEXT_EXT = new Set([".txt", ".md", ".mdx", ".markdown"]);
-
 /**
- * POST /api/knowledge/[id]/upload — multipart/form-data 上传文本文件（.txt/.md/.mdx，支持多文件）
- * 只存元数据 + 原文，索引状态 none（由 build-index 单独构建向量索引）。
+ * POST /api/knowledge/[id]/upload — multipart/form-data 上传文档（.txt/.md/.mdx/.pdf，支持多文件）
+ * 提取原文存入 content（PDF 用 pdf-parse 解析），索引状态 none（由 build-index 单独构建向量索引）。
  */
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
@@ -28,24 +27,35 @@ export async function POST(request: Request, { params }: Params) {
     .map(([, v]) => v as File);
   if (files.length === 0) return Response.json({ error: "未选择文件" }, { status: 400 });
 
-  const results: Array<{ id: string; name: string; ok: boolean; error?: string }> = [];
+  const results: Array<{ id: string; name: string; ok: boolean; error?: string; extra?: string }> = [];
   for (const file of files) {
     const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-    if (!TEXT_EXT.has(ext)) {
-      results.push({ id: "", name: file.name, ok: false, error: `不支持的格式 ${ext}（仅支持 txt/md/mdx）` });
+    if (!SUPPORTED_EXTS.has(ext)) {
+      results.push({ id: "", name: file.name, ok: false, error: `不支持的格式 ${ext}（仅支持 txt/md/mdx/pdf）` });
       continue;
     }
     if (file.size > MAX_FILE_BYTES) {
-      results.push({ id: "", name: file.name, ok: false, error: "文件超过 2MB 限制" });
+      results.push({ id: "", name: file.name, ok: false, error: "文件超过 10MB 限制" });
       continue;
     }
-    const text = (await file.text()).trim();
-    if (!text) {
-      results.push({ id: "", name: file.name, ok: false, error: "文件内容为空" });
-      continue;
+    try {
+      const buf = await file.arrayBuffer();
+      const { text, numPages } = await extractFileText(file.name, buf);
+      const trimmed = text.trim();
+      if (!trimmed) {
+        results.push({ id: "", name: file.name, ok: false, error: "文件内容为空（PDF 可能为扫描件/无文本层）" });
+        continue;
+      }
+      const record = db.addKnowledgeFile(id, file.name, file.size, trimmed);
+      results.push({ id: record.id, name: file.name, ok: true, extra: numPages !== undefined ? `${numPages} 页` : undefined });
+    } catch (err) {
+      results.push({
+        id: "",
+        name: file.name,
+        ok: false,
+        error: `解析失败：${err instanceof Error ? err.message : String(err)}`,
+      });
     }
-    const record = db.addKnowledgeFile(id, file.name, file.size, text);
-    results.push({ id: record.id, name: file.name, ok: true });
   }
   return Response.json({ results });
 }

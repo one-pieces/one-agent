@@ -47,7 +47,7 @@ export default function KnowledgeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [uploadResults, setUploadResults] = useState<Array<{ id: string; name: string; ok: boolean; error?: string }>>([]);
+  const [uploadResults, setUploadResults] = useState<Array<{ id: string; name: string; ok: boolean; error?: string; extra?: string }>>([]);
 
   // 编辑面板
   const [editOpen, setEditOpen] = useState(false);
@@ -290,12 +290,12 @@ export default function KnowledgeDetailPage() {
 
       {error && <p className="error">{error}</p>}
 
-      <h3>上传文档（.txt / .md / .mdx，支持多选，单个 ≤2MB）</h3>
+      <h3>上传文档（.txt / .md / .mdx / .pdf，支持多选，单个 ≤10MB）</h3>
       <div className="field-inline">
         <input
           ref={fileInputRef}
           type="file"
-          accept=".txt,.md,.mdx,.markdown"
+          accept=".txt,.md,.mdx,.markdown,.pdf"
           multiple
           onChange={(e) => void handleUpload(e.target.files)}
         />
@@ -307,7 +307,7 @@ export default function KnowledgeDetailPage() {
         <ul className="upload-results">
           {uploadResults.map((r, i) => (
             <li key={i} className={r.ok ? "ok" : "error"}>
-              {r.name}：{r.ok ? "已上传，可构建向量索引" : r.error}
+              {r.name}：{r.ok ? `已上传${r.extra ? `（${r.extra}）` : ""}，可构建向量索引` : r.error}
             </li>
           ))}
         </ul>

@@ -105,7 +105,7 @@ export default function KnowledgePage() {
         </button>
       </div>
       <p className="muted">
-        上传 .txt / .md 文档，Agent 配置里勾选知识库后，对话时通过 knowledge_search 工具检索（关键词 BM25，无需向量库）。
+        上传 .txt / .md / .mdx / .pdf 文档，为每个文件构建本地向量索引（bge-m3），Agent 配置里勾选知识库后，对话时通过 knowledge_search 工具混合检索（BM25 + 向量 + RRF）。
       </p>
 
       {loading ? (
