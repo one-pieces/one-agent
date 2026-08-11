@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BotIcon, FileTextIcon, MessageSquareIcon } from "lucide-react";
+import { BookOpenIcon, BotIcon, FileTextIcon, MessageSquareIcon } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems = [
@@ -17,6 +17,12 @@ const navItems = [
     label: "Agents",
     icon: BotIcon,
     match: (p: string) => p.startsWith("/agents"),
+  },
+  {
+    href: "/knowledge",
+    label: "知识库",
+    icon: BookOpenIcon,
+    match: (p: string) => p.startsWith("/knowledge"),
   },
   {
     href: "/logs",

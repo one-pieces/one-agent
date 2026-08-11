@@ -108,6 +108,8 @@ export interface AgentConfig {
   model: ProviderConfig;
   /** 工具启用开关（工具本体注册在 ToolRegistry） */
   tools: Array<{ name: string; enabled: boolean }>;
+  /** 关联的知识库 id 列表（应用层注入 knowledge_search 工具，对话时检索） */
+  knowledgeBaseIds?: string[];
   memory?: {
     strategy: "none" | "window" | "compaction";
     maxMessages?: number;

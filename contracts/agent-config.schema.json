@@ -21,6 +21,11 @@
         }
       }
     },
+    "knowledgeBaseIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "关联的知识库 id 列表（应用层注入 knowledge_search 工具，对话时检索）"
+    },
     "memory": {
       "type": "object",
       "properties": {

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { AgentConfig } from "@one-agent/core";
+import type { KnowledgeBase } from "@/lib/db";
 import Select from "@/components/Select";
 
 interface ToolInfo {
@@ -28,6 +30,7 @@ export default function AgentForm({
 }) {
   const router = useRouter();
   const [tools, setTools] = useState<ToolInfo[]>([]);
+  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -55,6 +58,10 @@ export default function AgentForm({
         }
       })
       .catch(() => setTools([]));
+    fetch("/api/knowledge")
+      .then((r) => r.json())
+      .then((list: KnowledgeBase[]) => setKnowledgeBases(list))
+      .catch(() => setKnowledgeBases([]));
   }, [initial]);
 
   const set = <K extends keyof AgentConfig>(key: K, value: AgentConfig[K]) =>
@@ -68,6 +75,22 @@ export default function AgentForm({
         ? f.tools.map((t) => (t.name === name ? { ...t, enabled } : t))
         : [...f.tools, { name, enabled }];
       return { ...f, tools };
+    });
+
+  /** 勾选知识库：增删 knowledgeBaseIds；关联后自动启用 knowledge_search 工具，全部取消则移除 */
+  const toggleKnowledgeBase = (kbId: string) =>
+    setForm((f) => {
+      const has = (f.knowledgeBaseIds ?? []).includes(kbId);
+      const knowledgeBaseIds = has
+        ? (f.knowledgeBaseIds ?? []).filter((x) => x !== kbId)
+        : [...(f.knowledgeBaseIds ?? []), kbId];
+      let tools = f.tools;
+      if (knowledgeBaseIds.length > 0 && !tools.some((t) => t.name === "knowledge_search")) {
+        tools = [...tools, { name: "knowledge_search", enabled: true }];
+      } else if (knowledgeBaseIds.length === 0) {
+        tools = tools.filter((t) => t.name !== "knowledge_search");
+      }
+      return { ...f, knowledgeBaseIds, tools };
     });
 
   const submit = async () => {
@@ -188,6 +211,34 @@ export default function AgentForm({
             );
           })}
         </div>
+      )}
+
+      <h3>知识库（关联后对话可检索）</h3>
+      {knowledgeBases.length === 0 ? (
+        <p className="muted">
+          还没有知识库。{" "}
+          <Link href="/knowledge" className="muted" style={{ textDecoration: "underline" }}>
+            去创建 →
+          </Link>
+        </p>
+      ) : (
+        <div className="tool-list">
+          {knowledgeBases.map((kb) => {
+            const enabled = (form.knowledgeBaseIds ?? []).includes(kb.id);
+            return (
+              <label key={kb.id} className="tool-item">
+                <input type="checkbox" checked={enabled} onChange={() => toggleKnowledgeBase(kb.id)} />
+                <span>
+                  <code>{kb.name}</code>
+                  <small>{kb.description || kb.id}</small>
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+      {(form.knowledgeBaseIds?.length ?? 0) > 0 && (
+        <p className="muted">已自动启用 knowledge_search 工具，对话时模型会按需检索知识库。</p>
       )}
 
       <h3>记忆与限制</h3>

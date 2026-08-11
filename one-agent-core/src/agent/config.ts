@@ -16,6 +16,7 @@ export const agentConfigSchema = z.object({
     extraHeaders: z.record(z.string(), z.string()).optional(),
   }),
   tools: z.array(z.object({ name: z.string().min(1), enabled: z.boolean() })),
+  knowledgeBaseIds: z.array(z.string().min(1)).optional(),
   memory: z
     .object({
       strategy: z.enum(["none", "window", "compaction"]),

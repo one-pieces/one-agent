@@ -18,6 +18,7 @@ import {
   type ToolSpec,
 } from "@one-agent/core";
 import { createLoggingFetch } from "./observability.ts";
+import { createKnowledgeSearchTool } from "./knowledge-tool.ts";
 
 /** 会话级配置覆盖（存在 Session.meta，每轮自动生效）—— 多会话模型/工具隔离的核心 */
 export interface SessionOverrides {
@@ -65,11 +66,16 @@ export class InProcessKernel {
   }
 
   private getOrCreate(config: AgentConfig): Agent {
+    // 关联了知识库但未在 tools 里启用 knowledge_search 时自动启用（表单或直连 API 都覆盖）
+    if (config.knowledgeBaseIds?.length && !config.tools.some((t) => t.name === "knowledge_search")) {
+      config = { ...config, tools: [...config.tools, { name: "knowledge_search", enabled: true }] };
+    }
     const cached = this.cache.get(config.id);
     if (cached && JSON.stringify(cached.config) === JSON.stringify(config)) return cached.agent;
 
     const registry = new ToolRegistry();
     for (const t of builtinTools) registry.add(t);
+    if (config.knowledgeBaseIds?.length) registry.add(createKnowledgeSearchTool(config.knowledgeBaseIds));
     const agent = new Agent(validateAgentConfig(config), {
       provider: this.providerFactory(config.model.provider),
       tools: registry,
