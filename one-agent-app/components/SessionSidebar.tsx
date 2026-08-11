@@ -23,10 +23,12 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
+  const [agentName, setAgentName] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!agentId) {
       setSessions([]);
+      setAgentName(null);
       // 无 Agent 上下文时拉取 Agent 列表（/chat 首页）
       try {
         const res = await fetch("/api/agents");
@@ -37,6 +39,16 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
       return;
     }
     setAgents([]);
+    // 拉取 Agent 配置用于侧边栏标题（显示名字而非 id）
+    try {
+      const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}`);
+      if (res.ok) {
+        const cfg = await res.json();
+        setAgentName(cfg.name ?? null);
+      }
+    } catch {
+      /* ignore */
+    }
     try {
       const res = await fetch(`/api/sessions?agentId=${encodeURIComponent(agentId)}`);
       if (res.ok) setSessions(await res.json());
@@ -116,7 +128,7 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
             </button>
           )}
           <span className="sidebar-title">
-            {agentId ? <code>{agentId}</code> : "会话 Agent"}
+            {agentId ? (agentName ?? agentId) : "会话 Agent"}
           </span>
         </div>
         <div className="sidebar-header-actions">
