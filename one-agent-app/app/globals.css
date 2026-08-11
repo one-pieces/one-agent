@@ -1735,3 +1735,111 @@ h3 {
   font-size: 10px;
   color: var(--muted-foreground);
 }
+
+/* ═══ 基础 UI：Dialog（radix-ui 原语，components/ui/dialog.tsx）═══ */
+.ui-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.ui-dialog-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 101;
+  width: min(560px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  outline: none;
+}
+
+.ui-dialog-content:focus-visible {
+  outline: none;
+}
+
+.ui-dialog-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.ui-dialog-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.ui-dialog-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.ui-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.ui-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ui-dialog-close:hover {
+  background: var(--card-2);
+  color: var(--foreground);
+}
+
+.ui-dialog-close-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Dialog 尺寸变体 */
+.ui-dialog-narrow {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.ui-dialog-wide {
+  width: min(980px, calc(100vw - 32px));
+}
+
+/* 查看器内联工具栏（来源筛选 + 计数） */
+.kb-dialog-toolbar-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.kb-dialog-toolbar-inline select {
+  background: var(--card-2);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+}

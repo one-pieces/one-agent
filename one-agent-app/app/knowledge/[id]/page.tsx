@@ -17,6 +17,15 @@ import {
   XCircle,
 } from "lucide-react";
 import type { KnowledgeBase, KnowledgeChunk, KnowledgeFile, KnowledgeIndexStatus } from "@/lib/db";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -479,53 +488,50 @@ export default function KnowledgeDetailPage() {
       )}
       {!searching && query.trim() !== "" && searchResults.length === 0 && <p className="muted">未检索到相关内容（可先为文件构建向量索引）。</p>}
 
-      {/* ═══ 编辑 Dialog ═══ */}
-      {editOpen && (
-        <div className="kb-dialog">
-          <div className="kb-dialog-content" style={{ maxWidth: 480 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <h3>编辑知识库</h3>
-              <button className="btn" onClick={() => setEditOpen(false)}>取消</button>
-            </div>
-            <div className="field" style={{ marginTop: 12 }}>
-              <label>名称 *</label>
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
-            </div>
-            <div className="field">
-              <label>描述</label>
-              <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} />
-            </div>
-            <label className="tool-item" style={{ margin: "8px 0" }}>
-              <input type="checkbox" checked={editRerank} onChange={(e) => setEditRerank(e.target.checked)} />
-              <span>
-                <code>cross-encoder 重排</code>
-                <small>启用后用重排模型精算相关性（首次触发需下载模型，检索变慢但更准）</small>
-              </span>
-            </label>
-            <div className="actions">
-              <button className="btn primary" onClick={() => void handleEditSave()} disabled={!editName.trim()}>保存</button>
-              <button className="btn" onClick={() => setEditOpen(false)}>取消</button>
-            </div>
+      {/* ═══ 编辑 Dialog（radix-ui）═══ */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="ui-dialog-narrow">
+          <DialogHeader>
+            <DialogTitle>编辑知识库</DialogTitle>
+            <DialogDescription>修改名称、描述与检索设置</DialogDescription>
+          </DialogHeader>
+          <div className="field">
+            <label>名称 *</label>
+            <input value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
           </div>
-        </div>
-      )}
+          <div className="field">
+            <label>描述</label>
+            <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} />
+          </div>
+          <label className="tool-item" style={{ margin: "8px 0" }}>
+            <input type="checkbox" checked={editRerank} onChange={(e) => setEditRerank(e.target.checked)} />
+            <span>
+              <code>cross-encoder 重排</code>
+              <small>启用后用重排模型精算相关性（首次触发需下载模型，检索变慢但更准）</small>
+            </span>
+          </label>
+          <DialogFooter>
+            <DialogClose asChild>
+              <button className="btn">取消</button>
+            </DialogClose>
+            <button className="btn primary" onClick={() => void handleEditSave()} disabled={!editName.trim()}>保存</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* ═══ 分块 + 向量查看器 Dialog（eve 表格风格）═══ */}
-      {vecOpen && (
-        <div className="kb-dialog">
-          <div className="kb-dialog-content kb-dialog-wide">
-            <div className="kb-dialog-head">
-              <h3 className="kb-dialog-title">
-                {viewerFile ? <FileText /> : <Database />}
-                {viewerFile ? `分块与向量：${viewerFile.name}` : `向量索引（共 ${vecTotal} 个向量）`}
-              </h3>
-              <button className="btn" onClick={() => setVecOpen(false)}>关闭</button>
-            </div>
-            <div className="kb-dialog-toolbar">
+      {/* ═══ 分块 + 向量查看器 Dialog（radix-ui，eve 表格风格）═══ */}
+      <Dialog open={vecOpen} onOpenChange={setVecOpen}>
+        <DialogContent className="ui-dialog-wide">
+          <DialogHeader>
+            <DialogTitle className="kb-dialog-title">
+              {viewerFile ? <FileText /> : <Database />}
+              {viewerFile ? `分块与向量：${viewerFile.name}` : `向量索引（共 ${vecTotal} 个向量）`}
+            </DialogTitle>
+            <DialogDescription>
               {viewerFile ? (
-                <span className="muted">共 {vecTotal} 条{viewerFile.indexStatus === "done" ? "（含向量）" : "（未建索引，无向量）"}</span>
+                `共 ${vecTotal} 条${viewerFile.indexStatus === "done" ? "（含向量）" : "（未建索引，无向量）"}`
               ) : (
-                <>
+                <span className="kb-dialog-toolbar-inline">
                   <select value={vecSource} onChange={(e) => { setVecSource(e.target.value); void loadVectorIndex(0, e.target.value); }}>
                     <option value="">全部来源</option>
                     {vecSources.map((s) => (
@@ -533,77 +539,77 @@ export default function KnowledgeDetailPage() {
                     ))}
                   </select>
                   <span className="muted">{vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}</span>
-                </>
-              )}
-            </div>
-            {vecLoading ? (
-              <p className="muted kb-dialog-loading"><Loader2 className="kb-spin" /> 加载中…</p>
-            ) : vecItems.length === 0 ? (
-              <p className="muted kb-dialog-empty">暂无数据（先为文件构建索引）</p>
-            ) : (
-              <div className="kb-vec-table-wrap">
-                <table className="kb-vec-table">
-                  <thead>
-                    <tr>
-                      <th className="kb-col-idx">#</th>
-                      {!viewerFile && <th className="kb-col-src">来源</th>}
-                      <th>内容</th>
-                      <th className="kb-col-emb">Embedding</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vecItems.map((it, idx) => {
-                      const isExpanded = vecExpanded === it.chunkId;
-                      const textPreview = it.content.length > 120 ? it.content.slice(0, 120) + "…" : it.content;
-                      return (
-                        <tr
-                          key={it.chunkId}
-                          className={isExpanded ? "kb-row-expanded" : ""}
-                          onClick={() => setVecExpanded(isExpanded ? null : it.chunkId)}
-                          title={it.content.length > 120 ? "点击展开/收起全文" : undefined}
-                        >
-                          <td className="kb-col-idx">{vecOffset + idx + 1}</td>
-                          {!viewerFile && <td className="kb-col-src">{it.fileName}</td>}
-                          <td>
-                            <p className="kb-cell-text">{isExpanded ? it.content : textPreview}</p>
-                            {it.content.length > 120 && (
-                              <span className="kb-cell-chars">{it.content.length} chars</span>
-                            )}
-                          </td>
-                          <td className="kb-col-emb">
-                            {it.dim > 0 ? (
-                              <>
-                                <span className="kb-emb-preview">[{it.embeddingPreview.join(", ")}, …]</span>
-                                <br />
-                                <span className="muted">dim={it.dim}</span>
-                              </>
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {!viewerFile && vecTotal > VEC_LIMIT && (
-              <div className="actions" style={{ marginTop: 12 }}>
-                <button className="btn" disabled={vecOffset <= 0} onClick={() => void loadVectorIndex(Math.max(0, vecOffset - VEC_LIMIT), vecSource)}>
-                  上一页
-                </button>
-                <span className="muted">
-                  {vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}
                 </span>
-                <button className="btn" disabled={vecOffset + VEC_LIMIT >= vecTotal} onClick={() => void loadVectorIndex(vecOffset + VEC_LIMIT, vecSource)}>
-                  下一页
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {vecLoading ? (
+            <p className="muted kb-dialog-loading"><Loader2 className="kb-spin" /> 加载中…</p>
+          ) : vecItems.length === 0 ? (
+            <p className="muted kb-dialog-empty">暂无数据（先为文件构建索引）</p>
+          ) : (
+            <div className="kb-vec-table-wrap">
+              <table className="kb-vec-table">
+                <thead>
+                  <tr>
+                    <th className="kb-col-idx">#</th>
+                    {!viewerFile && <th className="kb-col-src">来源</th>}
+                    <th>内容</th>
+                    <th className="kb-col-emb">Embedding</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vecItems.map((it, idx) => {
+                    const isExpanded = vecExpanded === it.chunkId;
+                    const textPreview = it.content.length > 120 ? it.content.slice(0, 120) + "…" : it.content;
+                    return (
+                      <tr
+                        key={it.chunkId}
+                        className={isExpanded ? "kb-row-expanded" : ""}
+                        onClick={() => setVecExpanded(isExpanded ? null : it.chunkId)}
+                        title={it.content.length > 120 ? "点击展开/收起全文" : undefined}
+                      >
+                        <td className="kb-col-idx">{vecOffset + idx + 1}</td>
+                        {!viewerFile && <td className="kb-col-src">{it.fileName}</td>}
+                        <td>
+                          <p className="kb-cell-text">{isExpanded ? it.content : textPreview}</p>
+                          {it.content.length > 120 && (
+                            <span className="kb-cell-chars">{it.content.length} chars</span>
+                          )}
+                        </td>
+                        <td className="kb-col-emb">
+                          {it.dim > 0 ? (
+                            <>
+                              <span className="kb-emb-preview">[{it.embeddingPreview.join(", ")}, …]</span>
+                              <br />
+                              <span className="muted">dim={it.dim}</span>
+                            </>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!viewerFile && vecTotal > VEC_LIMIT && (
+            <DialogFooter>
+              <button className="btn" disabled={vecOffset <= 0} onClick={() => void loadVectorIndex(Math.max(0, vecOffset - VEC_LIMIT), vecSource)}>
+                上一页
+              </button>
+              <span className="muted">
+                {vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}
+              </span>
+              <button className="btn" disabled={vecOffset + VEC_LIMIT >= vecTotal} onClick={() => void loadVectorIndex(vecOffset + VEC_LIMIT, vecSource)}>
+                下一页
+              </button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
