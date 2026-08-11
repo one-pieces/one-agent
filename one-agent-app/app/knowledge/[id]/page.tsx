@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import Select from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -504,13 +505,13 @@ export default function KnowledgeDetailPage() {
             <label>描述</label>
             <textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} />
           </div>
-          <label className="tool-item" style={{ margin: "8px 0" }}>
-            <input type="checkbox" checked={editRerank} onChange={(e) => setEditRerank(e.target.checked)} />
-            <span>
-              <code>cross-encoder 重排</code>
-              <small>启用后用重排模型精算相关性（首次触发需下载模型，检索变慢但更准）</small>
-            </span>
-          </label>
+          <div className="ui-setting-row">
+            <div>
+              <p className="ui-setting-row-title">cross-encoder 重排</p>
+              <p className="ui-setting-row-hint">启用后用重排模型精算相关性（首次触发需下载模型，检索变慢但更准）</p>
+            </div>
+            <Switch checked={editRerank} onCheckedChange={setEditRerank} aria-label="cross-encoder 重排" />
+          </div>
           <DialogFooter>
             <DialogClose asChild>
               <button className="btn">取消</button>

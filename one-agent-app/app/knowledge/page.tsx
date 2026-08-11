@@ -4,6 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { KnowledgeBase } from "@/lib/db";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/Dialog";
+import { Switch } from "@/components/ui/Switch";
 
 export default function KnowledgePage() {
   const router = useRouter();
@@ -141,9 +151,12 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      {panelOpen && (
-        <div className="form panel">
-          <h3>{editing ? `编辑知识库：${editing.name}` : "新建知识库"}</h3>
+      <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
+        <DialogContent className="ui-dialog-narrow">
+          <DialogHeader>
+            <DialogTitle>{editing ? "编辑知识库" : "新建知识库"}</DialogTitle>
+            <DialogDescription>{editing ? `修改「${editing.name}」的配置` : "创建新的知识库"}</DialogDescription>
+          </DialogHeader>
           <div className="field">
             <label>名称 *</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="公司产品手册" autoFocus />
@@ -152,24 +165,24 @@ export default function KnowledgePage() {
             <label>描述（可选）</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </div>
-          <label className="tool-item" style={{ margin: "8px 0" }}>
-            <input type="checkbox" checked={rerank} onChange={(e) => setRerank(e.target.checked)} />
-            <span>
-              <code>cross-encoder 重排</code>
-              <small>检索后精算相关性（首次触发需下载重排模型）</small>
-            </span>
-          </label>
+          <div className="ui-setting-row">
+            <div>
+              <p className="ui-setting-row-title">cross-encoder 重排</p>
+              <p className="ui-setting-row-hint">检索后精算相关性（首次触发需下载重排模型）</p>
+            </div>
+            <Switch checked={rerank} onCheckedChange={setRerank} aria-label="cross-encoder 重排" />
+          </div>
           {error && <p className="error">{error}</p>}
-          <div className="actions">
+          <DialogFooter>
+            <DialogClose asChild>
+              <button className="btn">取消</button>
+            </DialogClose>
             <button className="btn primary" onClick={() => void handleSave()} disabled={saving || !name.trim()}>
               {saving ? "保存中…" : "保存"}
             </button>
-            <button className="btn" onClick={() => setPanelOpen(false)}>
-              取消
-            </button>
-          </div>
-        </div>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
