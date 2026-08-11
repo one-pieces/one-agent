@@ -11,7 +11,14 @@ export interface RequestLog {
 }
 
 const MAX_LOGS = 500;
-const logs: RequestLog[] = [];
+
+/**
+ * 进程级日志缓冲：Next.js 会把同一模块打进多个 bundle（route 处理器 / 页面 server component 各自实例化），
+ * 模块级数组会分裂成多份——内核写入的副本和页面读取的副本不是同一个。
+ * 挂到 globalThis 保证同一进程内所有 bundle 读写同一份数组。
+ */
+const globalStore = globalThis as typeof globalThis & { __oneAgentRequestLogs?: RequestLog[] };
+const logs: RequestLog[] = (globalStore.__oneAgentRequestLogs ??= []);
 
 export function createLoggingFetch(fetchImpl: typeof fetch = fetch): typeof fetch {
   return async (input, init) => {
