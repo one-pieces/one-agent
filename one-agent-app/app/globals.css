@@ -1993,15 +1993,25 @@ h3 {
   border-color: var(--destructive);
 }
 
-/* Agent 列表项右侧模型小字 */
+/* Agent 列表项两行布局：第一行名称、第二行模型 + 工具数 */
+.sidebar-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidebar-item-body .sidebar-item-title {
+  flex: none;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
 .sidebar-item-sub {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 8px;
   font-size: 10px;
   color: var(--muted-foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 80px;
 }

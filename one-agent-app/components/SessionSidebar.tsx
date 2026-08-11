@@ -14,6 +14,7 @@ interface AgentListItem {
   id: string;
   name: string;
   model: { modelId: string };
+  tools: Array<{ name: string; enabled: boolean }>;
 }
 
 /** 会话侧边栏（方案 A：显示"当前 Agent"的会话；可折叠；无 Agent 时显示 Agent 列表） */
@@ -115,7 +116,7 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
             </button>
           )}
           <span className="sidebar-title">
-            {agentId ? <code>{agentId}</code> : "选择 Agent"}
+            {agentId ? <code>{agentId}</code> : "会话 Agent"}
           </span>
         </div>
         <div className="sidebar-header-actions">
@@ -152,8 +153,12 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
                     className="sidebar-item"
                   >
                     <BotIcon size={15} className="sidebar-item-icon" />
-                    <span className="sidebar-item-title">{a.name}</span>
-                    <span className="sidebar-item-sub">{a.model?.modelId ?? ""}</span>
+                    <span className="sidebar-item-body">
+                      <span className="sidebar-item-title">{a.name}</span>
+                      <span className="sidebar-item-sub">
+                        {a.model?.modelId ?? ""} · {a.tools?.filter((t) => t.enabled).length ?? 0} 个工具
+                      </span>
+                    </span>
                   </div>
                 </li>
               ))}
