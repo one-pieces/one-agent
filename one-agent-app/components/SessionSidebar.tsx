@@ -96,6 +96,16 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
     return t && t.length > 0 ? t : s.id;
   };
 
+  /** 会话 token 摘要（与 Chat.tsx token-badge 一致：↑输入 ↓输出 ◎缓存命中 ＋缓存写入） */
+  const tokenSummary = (s: Session): string => {
+    const u = (s.meta as { tokenUsage?: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; cacheCreationTokens?: number } } | undefined)?.tokenUsage;
+    if (!u || (u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0) return "暂无 token";
+    const parts = [`↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`];
+    if ((u.cachedTokens ?? 0) > 0) parts.push(`◎${(u.cachedTokens ?? 0).toLocaleString()}`);
+    if ((u.cacheCreationTokens ?? 0) > 0) parts.push(`＋${(u.cacheCreationTokens ?? 0).toLocaleString()}`);
+    return parts.join(" ");
+  };
+
   if (collapsed) {
     return (
       <div className="sidebar sidebar-collapsed">
@@ -192,7 +202,10 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
                   className={`sidebar-item${activeSessionId === s.id ? " active" : ""}`}
                 >
                   <MessageSquareIcon size={15} className="sidebar-item-icon" />
-                  <span className="sidebar-item-title">{title(s)}</span>
+                  <span className="sidebar-item-body">
+                    <span className="sidebar-item-title">{title(s)}</span>
+                    <span className="sidebar-item-sub">{tokenSummary(s)}</span>
+                  </span>
                   <button
                     className="sidebar-item-delete"
                     onClick={(e) => {
