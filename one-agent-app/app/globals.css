@@ -1076,6 +1076,10 @@ h3 {
 
 .kb-card {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
 }
 
 .kb-card-link {
@@ -1084,18 +1088,31 @@ h3 {
   z-index: 0;
 }
 
-.kb-card > .card-main,
-.kb-card > div:last-child {
+/* 标题行：标题 + 右上角按钮组（hover 显示） */
+.kb-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   position: relative;
   z-index: 1;
+  min-width: 0;
+  pointer-events: none; /* 整卡跳转：标题区点击穿透到 .kb-card-link */
 }
 
-/* 关键：.card-main 允许收缩（内部 .card-sub 是 nowrap，min-width:auto 会撑爆 flex 行，
-   把右侧按钮组挤出卡片边界）；放行后 ellipsis 截断生效，按钮组回到卡片内右缘 */
-.kb-card > .card-main {
+.kb-card-title-row h2 {
+  margin: 0;
   min-width: 0;
-  flex: 1 1 auto;
-  /* 整卡跳转：内容区点击穿透到 .kb-card-link（z-index:0 覆盖全卡），按钮区不受影响 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 整卡跳转：描述/元信息区域点击穿透到 .kb-card-link */
+.kb-card > .kb-desc,
+.kb-card > .card-sub {
+  position: relative;
+  z-index: 1;
   pointer-events: none;
 }
 
@@ -1936,6 +1953,13 @@ h3 {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
+  pointer-events: auto; /* 标题行 pointer-events:none 下恢复按钮可点 */
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.kb-card:hover .kb-card-actions {
+  opacity: 1;
 }
 
 .kb-card-icon-btn {

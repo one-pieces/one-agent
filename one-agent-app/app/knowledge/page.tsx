@@ -128,21 +128,21 @@ export default function KnowledgePage() {
           {bases.map((kb) => (
             <div key={kb.id} className="card kb-card">
               <Link href={`/knowledge/${kb.id}`} className="kb-card-link" />
-              <div className="card-main">
+              <div className="kb-card-title-row">
                 <h2>{kb.name}</h2>
-                {kb.description && <p className="kb-desc">{kb.description}</p>}
-                <div className="card-sub">
-                  <code>{kb.id}</code> · {fileCounts[kb.id] ?? 0} 个文件 · 更新于{" "}
-                  {new Date(kb.updatedAt).toLocaleString("zh-CN")}
+                <div className="kb-card-actions">
+                  <button className="kb-card-icon-btn" onClick={() => openEdit(kb)} title="编辑">
+                    <Pencil />
+                  </button>
+                  <button className="kb-card-icon-btn kb-card-icon-danger" onClick={() => void handleDelete(kb)} title="删除">
+                    <Trash2 />
+                  </button>
                 </div>
               </div>
-              <div className="kb-card-actions">
-                <button className="kb-card-icon-btn" onClick={() => openEdit(kb)} title="编辑">
-                  <Pencil />
-                </button>
-                <button className="kb-card-icon-btn kb-card-icon-danger" onClick={() => void handleDelete(kb)} title="删除">
-                  <Trash2 />
-                </button>
+              {kb.description && <p className="kb-desc">{kb.description}</p>}
+              <div className="card-sub">
+                <code>{kb.id}</code> · {fileCounts[kb.id] ?? 0} 个文件 · 更新于{" "}
+                {new Date(kb.updatedAt).toLocaleString("zh-CN")}
               </div>
             </div>
           ))}
