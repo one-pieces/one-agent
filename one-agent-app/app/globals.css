@@ -1384,6 +1384,49 @@ h3 {
   display: none;
 }
 
+/* 图标尺寸：项目无 Tailwind，size-* 类为死类，lucide 默认 24×24 需显式覆盖 */
+.kb-header-back svg {
+  width: 14px;
+  height: 14px;
+}
+
+.kb-header-actions .btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.kb-file-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.kb-file-actions svg {
+  width: 12px;
+  height: 12px;
+}
+
+.kb-meta-ok svg,
+.kb-meta-error svg,
+.kb-building-label svg {
+  width: 12px;
+  height: 12px;
+}
+
+.kb-dialog-title svg {
+  width: 14px;
+  height: 14px;
+}
+
+.kb-dialog-loading svg {
+  width: 12px;
+  height: 12px;
+}
+
+.kb-empty-icon {
+  width: 32px;
+  height: 32px;
+}
+
 /* 文件卡片行 */
 .kb-file-list {
   display: flex;
