@@ -30,6 +30,7 @@
   --destructive: #d6453d;
   --ok: #2da44e;
   --warning: #b8860b;
+  /* 亮色主题代码块：深色背景换浅色，避免继承的深色文字在深底上看不清 */
   --code-bg: #eef0f4;
   --code-inline-bg: rgba(0, 0, 0, 0.06);
 }
@@ -436,6 +437,8 @@ code {
 .msg.user .bubble {
   background: var(--primary-dim);
   border-color: var(--primary);
+  /* user 气泡是 primary 色系背景，文字用 primary-foreground（白），避免亮色主题黑字配蓝底对比度不足 */
+  color: var(--primary-foreground);
 }
 
 .cursor {
