@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AgentConfig } from "@one-agent/core";
 import type { KnowledgeBase } from "@/lib/db";
-import Select from "@/components/Select";
+import Select from "@/components/ui/Select";
 
 interface ToolInfo {
   name: string;
