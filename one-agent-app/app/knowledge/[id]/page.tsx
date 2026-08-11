@@ -288,7 +288,7 @@ export default function KnowledgeDetailPage() {
           className="kb-header-back"
           title="返回知识库列表"
         >
-          <ArrowLeft className="size-4" />
+          <ArrowLeft className="size-3.5" />
         </Link>
         <div className="kb-header-info">
           <div className="kb-header-title-row">
@@ -300,7 +300,7 @@ export default function KnowledgeDetailPage() {
         </div>
         <div className="kb-header-actions">
           <button className="btn" onClick={() => void openVectorIndex()} title="查看向量索引">
-            <List className="size-3.5" style={{ verticalAlign: -2, marginRight: 4 }} />
+            <List className="size-3" style={{ verticalAlign: -2, marginRight: 4 }} />
             向量索引（{indexedCount}）
           </button>
           <button
@@ -308,15 +308,15 @@ export default function KnowledgeDetailPage() {
             onClick={() => { setEditName(kb.name); setEditDesc(kb.description); setEditRerank(kb.useRerank); setEditOpen(true); }}
             title="编辑知识库"
           >
-            <Pencil className="size-3.5" style={{ verticalAlign: -2, marginRight: 4 }} />
+            <Pencil className="size-3" style={{ verticalAlign: -2, marginRight: 4 }} />
             编辑
           </button>
           <button className="btn danger" onClick={() => void handleDeleteKb()} title="删除知识库">
-            <Trash2 className="size-3.5" style={{ verticalAlign: -2, marginRight: 4 }} />
+            <Trash2 className="size-3" style={{ verticalAlign: -2, marginRight: 4 }} />
             删除
           </button>
           <button className="btn primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            {uploading ? <Loader2 className="size-3.5 kb-spin" style={{ verticalAlign: -2, marginRight: 4 }} /> : <Upload className="size-3.5" style={{ verticalAlign: -2, marginRight: 4 }} />}
+            {uploading ? <Loader2 className="size-3 kb-spin" style={{ verticalAlign: -2, marginRight: 4 }} /> : <Upload className="size-3" style={{ verticalAlign: -2, marginRight: 4 }} />}
             {uploading ? "上传中…" : "上传文档"}
           </button>
         </div>
@@ -344,7 +344,7 @@ export default function KnowledgeDetailPage() {
       {/* ═══ 文件列表（卡片式，对齐 eve）═══ */}
       {kb.files.length === 0 ? (
         <div className="kb-empty">
-          <FileText className="size-10 kb-empty-icon" />
+          <FileText className="size-8 kb-empty-icon" />
           <p>还没有文件，点击右上角「上传文档」添加。</p>
         </div>
       ) : (
@@ -354,7 +354,7 @@ export default function KnowledgeDetailPage() {
             const progress = buildProgress[f.id];
             return (
               <div key={f.id} className="kb-file-item">
-                <FileText className="size-4.5 kb-file-icon shrink-0" />
+                <FileText className="size-3.5 kb-file-icon shrink-0" />
                 <div className="kb-file-main">
                   <p className="kb-file-name">{f.name}</p>
                   <div className="kb-file-meta">
@@ -432,7 +432,7 @@ export default function KnowledgeDetailPage() {
                     onClick={() => void handleDeleteFile(f)}
                     title="删除文件及其索引"
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-3" />
                   </button>
                 </div>
               </div>
@@ -502,7 +502,7 @@ export default function KnowledgeDetailPage() {
         <div className="kb-dialog">
           <div className="kb-dialog-content kb-dialog-wide">
             <div className="kb-dialog-head">
-              <h3 className="kb-dialog-title"><Database className="size-4" /> 向量索引（共 {vecTotal} 个向量）</h3>
+              <h3 className="kb-dialog-title"><Database className="size-3.5" /> 向量索引（共 {vecTotal} 个向量）</h3>
               <button className="btn" onClick={() => setVecOpen(false)}>关闭</button>
             </div>
             <div className="kb-dialog-toolbar">
@@ -515,7 +515,7 @@ export default function KnowledgeDetailPage() {
               <span className="muted">{vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}</span>
             </div>
             {vecLoading ? (
-              <p className="muted kb-dialog-loading"><Loader2 className="size-3.5 kb-spin" /> 加载中…</p>
+              <p className="muted kb-dialog-loading"><Loader2 className="size-3 kb-spin" /> 加载中…</p>
             ) : vecItems.length === 0 ? (
               <p className="muted kb-dialog-empty">暂无向量（先为文件构建索引）</p>
             ) : (
@@ -555,7 +555,7 @@ export default function KnowledgeDetailPage() {
         <div className="kb-dialog">
           <div className="kb-dialog-content">
             <div className="kb-dialog-head">
-              <h3 className="kb-dialog-title"><FileText className="size-4" /> 分块查看：{chunksFile.name}（{chunks.length} 块）</h3>
+              <h3 className="kb-dialog-title"><FileText className="size-3.5" /> 分块查看：{chunksFile.name}（{chunks.length} 块）</h3>
               <button className="btn" onClick={() => setChunksOpen(false)}>关闭</button>
             </div>
             <div className="vec-list">
