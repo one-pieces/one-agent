@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, MessageSquareIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { ArrowLeftIcon, BotIcon, MessageSquareIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { Session } from "@one-agent/core";
 
 interface SessionSidebarProps {
@@ -10,17 +10,32 @@ interface SessionSidebarProps {
   activeSessionId: string | null;
 }
 
-/** 会话侧边栏（方案 A：显示"当前 Agent"的会话；可折叠） */
+interface AgentListItem {
+  id: string;
+  name: string;
+  model: { modelId: string };
+}
+
+/** 会话侧边栏（方案 A：显示"当前 Agent"的会话；可折叠；无 Agent 时显示 Agent 列表） */
 export default function SessionSidebar({ agentId, activeSessionId }: SessionSidebarProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [agents, setAgents] = useState<AgentListItem[]>([]);
 
   const refresh = useCallback(async () => {
     if (!agentId) {
       setSessions([]);
+      // 无 Agent 上下文时拉取 Agent 列表（/chat 首页）
+      try {
+        const res = await fetch("/api/agents");
+        if (res.ok) setAgents(await res.json());
+      } catch {
+        /* ignore */
+      }
       return;
     }
+    setAgents([]);
     try {
       const res = await fetch(`/api/sessions?agentId=${encodeURIComponent(agentId)}`);
       if (res.ok) setSessions(await res.json());
@@ -77,9 +92,13 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
         <button className="sidebar-icon-btn" onClick={() => setCollapsed(false)} title="展开侧边栏">
           <PanelLeftOpenIcon size={18} />
         </button>
-        {agentId && (
+        {agentId ? (
           <button className="sidebar-icon-btn" onClick={() => void handleNew()} title="新建对话">
             <PlusIcon size={18} />
+          </button>
+        ) : (
+          <button className="sidebar-icon-btn" onClick={() => router.push("/agents")} title="管理 Agent">
+            <BotIcon size={18} />
           </button>
         )}
       </div>
@@ -96,13 +115,19 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
             </button>
           )}
           <span className="sidebar-title">
-            {agentId ? <code>{agentId}</code> : "会话"}
+            {agentId ? <code>{agentId}</code> : "选择 Agent"}
           </span>
         </div>
         <div className="sidebar-header-actions">
-          <button className="sidebar-icon-btn" onClick={() => void handleNew()} disabled={!agentId} title="新建对话">
-            <PlusIcon size={16} />
-          </button>
+          {agentId ? (
+            <button className="sidebar-icon-btn" onClick={() => void handleNew()} disabled={!agentId} title="新建对话">
+              <PlusIcon size={16} />
+            </button>
+          ) : (
+            <button className="sidebar-icon-btn" onClick={() => router.push("/agents")} title="管理 Agent">
+              <BotIcon size={16} />
+            </button>
+          )}
           <button className="sidebar-icon-btn" onClick={() => setCollapsed(true)} title="折叠侧边栏">
             <PanelLeftCloseIcon size={16} />
           </button>
@@ -111,7 +136,29 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
 
       <div className="sidebar-list">
         {!agentId ? (
-          <p className="sidebar-empty">先在 Agents 里选择一个 Agent 开始对话</p>
+          agents.length === 0 ? (
+            <p className="sidebar-empty">还没有 Agent，去 Agents 页新建。</p>
+          ) : (
+            <ul>
+              {agents.map((a) => (
+                <li key={a.id}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(`/chat/agent/${a.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") router.push(`/chat/agent/${a.id}`);
+                    }}
+                    className="sidebar-item"
+                  >
+                    <BotIcon size={15} className="sidebar-item-icon" />
+                    <span className="sidebar-item-title">{a.name}</span>
+                    <span className="sidebar-item-sub">{a.model?.modelId ?? ""}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
         ) : sessions.length === 0 ? (
           <p className="sidebar-empty">暂无会话，点击上方 ＋ 新建</p>
         ) : (
@@ -147,7 +194,9 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
       </div>
 
       <div className="sidebar-footer">
-        <span className="sidebar-count">{sessions.length} 个会话</span>
+        <span className="sidebar-count">
+          {agentId ? `${sessions.length} 个会话` : `${agents.length} 个 Agent`}
+        </span>
       </div>
     </div>
   );

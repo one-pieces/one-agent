@@ -1992,3 +1992,16 @@ h3 {
   color: #fff;
   border-color: var(--destructive);
 }
+
+/* Agent 列表项右侧模型小字 */
+.sidebar-item-sub {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+}

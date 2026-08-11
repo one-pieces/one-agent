@@ -1,34 +1,15 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
 
-export const dynamic = "force-dynamic";
-
-/** /chat 空状态：选择 Agent 开始（方案 A 入口） */
+/** /chat 空状态：Agent 列表在左侧侧边栏，主区提供进入 Agent 页面的入口 */
 export default function ChatHomePage() {
-  const agents = db.listAgents();
   return (
     <div className="empty-state">
       <h1 className="empty-title">one-agent</h1>
-      <p className="empty-sub">选择一个 Agent 开始对话，或在 Agents 页新建。</p>
-      {agents.length === 0 ? (
-        <Link href="/agents/new" className="btn primary">
-          ＋ 新建 Agent
-        </Link>
-      ) : (
-        <div className="empty-agent-list">
-          {agents.map((a) => (
-            <Link key={a.id} href={`/chat/agent/${a.id}`} className="card empty-agent-card">
-              <div>
-                <h2>{a.name}</h2>
-                <div className="card-sub">
-                  <code>{a.id}</code> · {a.model.modelId}
-                </div>
-              </div>
-              <span className="btn">进入对话 →</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      <p className="empty-sub">从左侧选择一个 Agent 开始对话，或在 Agents 页新建与管理。</p>
+      <Link href="/agents" className="btn primary">
+        进入 Agent 页面 →
+      </Link>
+      <p className="empty-hint">Agent 列表已移至左侧栏，点击即可进入对话。</p>
     </div>
   );
 }
