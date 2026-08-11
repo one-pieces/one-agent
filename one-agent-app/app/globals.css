@@ -821,6 +821,46 @@ h3 {
   cursor: not-allowed;
 }
 
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  background-color: var(--card-2);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input:hover,
+.field textarea:hover {
+  border-color: var(--muted-foreground);
+}
+
+.field input:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
 .form .field {
   margin-bottom: 12px;
 }
@@ -1826,7 +1866,8 @@ h3 {
   height: 20px;
   border-radius: 9999px;
   border: 2px solid transparent;
-  background-color: var(--card-2);
+  padding: 0; /* 覆盖 UA button 默认 padding(1px 6px)，保证 thumb 行程 = 36-4-16 = 16px 与 translateX 匹配 */
+  background-color: var(--border);
   cursor: pointer;
   transition: background-color 0.2s;
   outline: none;
@@ -1852,7 +1893,7 @@ h3 {
   height: 16px;
   border-radius: 9999px;
   background-color: var(--card);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   transition: transform 0.2s;
   transform: translateX(0);
 }
