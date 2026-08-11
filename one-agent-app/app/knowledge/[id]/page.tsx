@@ -7,7 +7,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Database,
-  Eye,
+  ExternalLink,
   FileText,
   List,
   Loader2,
@@ -416,36 +416,29 @@ export default function KnowledgeDetailPage() {
                 </div>
 
                 <div className="kb-file-actions">
+                  <button className="btn btn-xs" onClick={() => void openViewer(f)} title={f.indexStatus === "done" ? "查看该文件的分块与向量索引" : "查看该文件的文本分块"}>
+                    <List style={{ verticalAlign: -2, marginRight: 4 }} />查看索引
+                  </button>
+                  <button className="btn btn-xs" onClick={() => window.open(`/api/knowledge/${kb!.id}/files/${f.id}/content`, "_blank", "noopener,noreferrer")} title="在新窗口查看文件原文">
+                    <ExternalLink style={{ verticalAlign: -2, marginRight: 4 }} />查看文件
+                  </button>
                   {f.indexStatus === "building" ? (
                     <span className="muted kb-building-label">
                       <Loader2 className="kb-spin" /> 构建中…
                     </span>
-                  ) : (
+                  ) : f.indexStatus === "done" ? (
                     <>
-                      {f.indexStatus === "done" ? (
-                        <button className="btn btn-xs" onClick={() => void openViewer(f)} title="查看分块与向量">
-                          <Eye style={{ verticalAlign: -2, marginRight: 4 }} />查看
-                        </button>
-                      ) : (
-                        <button className="btn btn-xs" onClick={() => void openViewer(f)} title="查看文本分块">
-                          <Eye style={{ verticalAlign: -2, marginRight: 4 }} />分块
-                        </button>
-                      )}
-                      {f.indexStatus === "done" ? (
-                        <>
-                          <button className="btn btn-xs" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="重新构建索引">
-                            <Database style={{ verticalAlign: -2, marginRight: 4 }} />重建
-                          </button>
-                          <button className="btn btn-xs" onClick={() => void handleDeleteIndex(f)} title="删除向量索引（文件保留）">
-                            删索引
-                          </button>
-                        </>
-                      ) : (
-                        <button className="btn btn-xs primary" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="构建向量索引">
-                          <Database style={{ verticalAlign: -2, marginRight: 4 }} />新建索引
-                        </button>
-                      )}
+                      <button className="btn btn-xs" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="重新构建索引">
+                        <Database style={{ verticalAlign: -2, marginRight: 4 }} />重建
+                      </button>
+                      <button className="btn btn-xs" onClick={() => void handleDeleteIndex(f)} title="删除向量索引（文件保留）">
+                        删索引
+                      </button>
                     </>
+                  ) : (
+                    <button className="btn btn-xs primary" onClick={() => void handleBuildIndex(f)} disabled={!!buildFileId} title="构建向量索引">
+                      <Database style={{ verticalAlign: -2, marginRight: 4 }} />新建索引
+                    </button>
                   )}
                   <button
                     className="kb-file-delete"

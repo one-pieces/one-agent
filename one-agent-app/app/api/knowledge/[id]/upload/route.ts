@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { SUPPORTED_EXTS, extractFileText } from "@/lib/rag/file-text";
+import { saveOriginalFile } from "@/lib/rag/file-store";
 
 export const runtime = "nodejs";
 
@@ -9,7 +10,8 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/knowledge/[id]/upload — multipart/form-data 上传文档（.txt/.md/.mdx/.pdf，支持多文件）
- * 提取原文存入 content（PDF 用 pdf-parse 解析），索引状态 none（由 build-index 单独构建向量索引）。
+ * 保存原始文件到磁盘（供「查看文件」直接打开），同时提取原文存入 content（供索引），
+ * 索引状态 none（由 build-index 单独构建向量索引）。
  */
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
@@ -39,7 +41,7 @@ export async function POST(request: Request, { params }: Params) {
       continue;
     }
     try {
-      const buf = await file.arrayBuffer();
+      const buf = new Uint8Array(await file.arrayBuffer());
       const { text, numPages } = await extractFileText(file.name, buf);
       const trimmed = text.trim();
       if (!trimmed) {
@@ -47,6 +49,8 @@ export async function POST(request: Request, { params }: Params) {
         continue;
       }
       const record = db.addKnowledgeFile(id, file.name, file.size, trimmed);
+      // 原始文件落盘（「查看文件」直接返回原文件）
+      await saveOriginalFile(id, record.id, file.name, buf);
       results.push({ id: record.id, name: file.name, ok: true, extra: numPages !== undefined ? `${numPages} 页` : undefined });
     } catch (err) {
       results.push({

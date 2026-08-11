@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { deleteOriginalDir } from "@/lib/rag/file-store";
 
 export const runtime = "nodejs";
 
@@ -30,10 +31,11 @@ export async function PATCH(request: Request, { params }: Params) {
   return Response.json(updated);
 }
 
-/** DELETE /api/knowledge/[id] — 删除知识库（级联删除文件、分块与向量索引） */
+/** DELETE /api/knowledge/[id] — 删除知识库（级联删除文件、分块、向量索引与磁盘原始文件） */
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
   if (!db.getKnowledgeBase(id)) return Response.json({ error: "not found" }, { status: 404 });
   db.deleteKnowledgeBase(id);
+  await deleteOriginalDir(id);
   return Response.json({ ok: true });
 }
