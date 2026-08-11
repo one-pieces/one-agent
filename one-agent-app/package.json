@@ -11,7 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@one-agent/core": "link:../one-agent-core",
+    "@huggingface/transformers": "^4.2.0",
+    "@one-agent/core": "file:../one-agent-core",
     "@streamdown/cjk": "^1.0.3",
     "lucide-react": "^1.31.0",
     "next": "^16.3.0",

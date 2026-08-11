@@ -7,9 +7,9 @@ export async function GET() {
   return Response.json(db.listKnowledgeBases());
 }
 
-/** POST /api/knowledge — 创建知识库 { name, description? } */
+/** POST /api/knowledge — 创建知识库 { name, description?, useRerank? } */
 export async function POST(request: Request) {
-  let body: { name?: string; description?: string };
+  let body: { name?: string; description?: string; useRerank?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
   }
   const name = body.name?.trim();
   if (!name) return Response.json({ error: "名称必填" }, { status: 400 });
-  const kb = db.createKnowledgeBase(name, body.description?.trim() ?? "");
+  const kb = db.createKnowledgeBase(name, body.description?.trim() ?? "", "sqlite", body.useRerank === true);
   return Response.json(kb, { status: 201 });
 }

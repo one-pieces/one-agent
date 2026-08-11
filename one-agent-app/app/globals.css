@@ -1215,3 +1215,75 @@ h3 {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ═══ 知识库 RAG：状态/进度/对话框/向量查看 ═══ */
+.kb-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+}
+
+.kb-status-none { color: var(--muted-foreground); }
+.kb-status-building { color: var(--warning); border-color: var(--warning); }
+.kb-status-done { color: var(--ok); border-color: var(--ok); }
+.kb-status-error { color: var(--destructive); border-color: var(--destructive); }
+
+.kb-progress {
+  width: 120px;
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--card-2);
+  overflow: hidden;
+}
+
+.kb-progress-bar {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.2s;
+}
+
+.kb-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.kb-dialog-content {
+  width: min(720px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.vec-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.vec-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--card-2);
+  font-size: 13px;
+}
+
+.vec-content {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

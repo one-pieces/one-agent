@@ -11,6 +11,8 @@ export class SqliteSessionStore implements SessionStore {
 
   constructor(filePath = ":memory:") {
     this.db = new DatabaseSync(filePath);
+    // WAL：多连接并发读写不互相阻塞（app 侧 dev server / 测试共用同一库文件）
+    this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id         TEXT PRIMARY KEY,

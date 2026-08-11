@@ -1,0 +1,6 @@
+# pnpm 11 配置：显式批准依赖构建脚本（本地 RAG 向量化需要 onnxruntime 原生二进制；sharp/protobufjs 为 @huggingface/transformers 传递依赖）
+allowBuilds:
+  onnxruntime-node: true
+  sharp: true
+  protobufjs: true
+  esbuild: true

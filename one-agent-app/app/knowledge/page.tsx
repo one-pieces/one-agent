@@ -17,6 +17,7 @@ export default function KnowledgePage() {
   const [editing, setEditing] = useState<KnowledgeBase | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [rerank, setRerank] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -47,6 +48,7 @@ export default function KnowledgePage() {
     setEditing(null);
     setName("");
     setDescription("");
+    setRerank(false);
     setPanelOpen(true);
   }
 
@@ -54,6 +56,7 @@ export default function KnowledgePage() {
     setEditing(kb);
     setName(kb.name);
     setDescription(kb.description);
+    setRerank(kb.useRerank);
     setPanelOpen(true);
   }
 
@@ -63,16 +66,17 @@ export default function KnowledgePage() {
     setSaving(true);
     setError("");
     try {
+      const body = JSON.stringify({ name: trimmed, description: description.trim(), useRerank: rerank });
       const res = editing
         ? await fetch(`/api/knowledge/${editing.id}`, {
             method: "PATCH",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ name: trimmed, description: description.trim() }),
+            body,
           })
         : await fetch("/api/knowledge", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ name: trimmed, description: description.trim() }),
+            body,
           });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -148,6 +152,13 @@ export default function KnowledgePage() {
             <label>描述（可选）</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </div>
+          <label className="tool-item" style={{ margin: "8px 0" }}>
+            <input type="checkbox" checked={rerank} onChange={(e) => setRerank(e.target.checked)} />
+            <span>
+              <code>cross-encoder 重排</code>
+              <small>检索后精算相关性（首次触发需下载重排模型）</small>
+            </span>
+          </label>
           {error && <p className="error">{error}</p>}
           <div className="actions">
             <button className="btn primary" onClick={() => void handleSave()} disabled={saving || !name.trim()}>

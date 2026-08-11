@@ -1,14 +1,15 @@
 import { db } from "@/lib/db";
-import { searchKnowledgeChunks } from "@/lib/knowledge";
+import { searchKnowledge } from "@/lib/rag/indexer";
 
 export const runtime = "nodejs";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** POST /api/knowledge/[id]/search — 检索预览 { query, limit? } → Top-K 分块 */
+/** POST /api/knowledge/[id]/search — 混合检索预览 { query, limit? } → Top-K 分块 */
 export async function POST(request: Request, { params }: Params) {
   const { id } = await params;
-  if (!db.getKnowledgeBase(id)) return Response.json({ error: "not found" }, { status: 404 });
+  const kb = db.getKnowledgeBase(id);
+  if (!kb) return Response.json({ error: "not found" }, { status: 404 });
 
   let body: { query?: string; limit?: number };
   try {
@@ -19,6 +20,10 @@ export async function POST(request: Request, { params }: Params) {
   const query = body.query?.trim() ?? "";
   if (!query) return Response.json({ error: "查询词必填" }, { status: 400 });
 
-  const chunks = searchKnowledgeChunks(db.getChunksForKnowledgeBases([id]), query, body.limit ?? 5);
-  return Response.json({ chunks });
+  const results = await searchKnowledge([id], query, {
+    topK: body.limit ?? 5,
+    useRerank: kb.useRerank,
+    store: db,
+  });
+  return Response.json({ chunks: results.map((r) => r.chunk) });
 }
