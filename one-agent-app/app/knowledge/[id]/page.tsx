@@ -26,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/Dialog";
+import Select from "@/components/ui/Select";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -532,12 +533,12 @@ export default function KnowledgeDetailPage() {
                 `共 ${vecTotal} 条${viewerFile.indexStatus === "done" ? "（含向量）" : "（未建索引，无向量）"}`
               ) : (
                 <span className="kb-dialog-toolbar-inline">
-                  <select value={vecSource} onChange={(e) => { setVecSource(e.target.value); void loadVectorIndex(0, e.target.value); }}>
-                    <option value="">全部来源</option>
-                    {vecSources.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  <Select
+                    value={vecSource}
+                    onChange={(v) => { setVecSource(v); void loadVectorIndex(0, v); }}
+                    options={[{ value: "", label: "全部来源" }, ...vecSources.map((s) => ({ value: s, label: s }))]}
+                    placeholder="全部来源"
+                  />
                   <span className="muted">{vecOffset + 1}-{Math.min(vecOffset + VEC_LIMIT, vecTotal)} / {vecTotal}</span>
                 </span>
               )}
