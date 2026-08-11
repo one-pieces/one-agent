@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Pencil, Trash2 } from "lucide-react";
 import type { KnowledgeBase } from "@/lib/db";
 import {
   Dialog,
@@ -135,15 +136,12 @@ export default function KnowledgePage() {
                   {new Date(kb.updatedAt).toLocaleString("zh-CN")}
                 </div>
               </div>
-              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                <Link href={`/knowledge/${kb.id}`} className="btn">
-                  管理
-                </Link>
-                <button className="btn" onClick={() => openEdit(kb)}>
-                  编辑
+              <div className="kb-card-actions">
+                <button className="kb-card-icon-btn" onClick={() => openEdit(kb)} title="编辑">
+                  <Pencil />
                 </button>
-                <button className="btn danger" onClick={() => void handleDelete(kb)}>
-                  删除
+                <button className="kb-card-icon-btn kb-card-icon-danger" onClick={() => void handleDelete(kb)} title="删除">
+                  <Trash2 />
                 </button>
               </div>
             </div>

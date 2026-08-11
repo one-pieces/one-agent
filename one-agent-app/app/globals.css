@@ -1095,6 +1095,8 @@ h3 {
 .kb-card > .card-main {
   min-width: 0;
   flex: 1 1 auto;
+  /* 整卡跳转：内容区点击穿透到 .kb-card-link（z-index:0 覆盖全卡），按钮区不受影响 */
+  pointer-events: none;
 }
 
 .kb-desc {
@@ -1924,4 +1926,45 @@ h3 {
   margin: 2px 0 0;
   font-size: 11px;
   color: var(--muted-foreground);
+}
+
+/* ═══ 知识库卡片操作按钮（icon，hover 显示）═══ */
+.kb-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.kb-card-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.kb-card-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.kb-card-icon-btn:hover {
+  background: var(--card-2);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.kb-card-icon-danger:hover {
+  background: var(--destructive);
+  color: #fff;
+  border-color: var(--destructive);
 }
