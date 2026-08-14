@@ -4,12 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertCircleIcon,
   ArrowDownIcon,
-  BotIcon,
   CheckCircle2Icon,
   ClockIcon,
   ShieldAlertIcon,
   Trash2Icon,
-  UserIcon,
   XCircleIcon,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
@@ -307,7 +305,6 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
         {loadingHistory && <p className="muted">加载历史…</p>}
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}`}>
-            <div className="msg-avatar">{m.role === "user" ? <UserIcon size={14} /> : <BotIcon size={14} />}</div>
             <div className="msg-content">
               {m.role === "assistant" && m.toolCalls.length > 0 && (
                 <div className="tool-calls">
@@ -360,27 +357,29 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
       )}
 
       <footer className="chat-footer">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-          rows={2}
-        />
-        {streaming ? (
-          <button className="btn danger" onClick={stop}>
-            停止
-          </button>
-        ) : (
-          <button className="btn primary" onClick={() => void send()} disabled={!input.trim()}>
-            发送
-          </button>
-        )}
+        <div className="chat-footer-inner">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+            rows={2}
+          />
+          {streaming ? (
+            <button className="btn danger" onClick={stop}>
+              停止
+            </button>
+          ) : (
+            <button className="btn primary" onClick={() => void send()} disabled={!input.trim()}>
+              发送
+            </button>
+          )}
+        </div>
       </footer>
     </div>
   );
