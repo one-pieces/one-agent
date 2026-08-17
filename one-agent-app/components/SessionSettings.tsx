@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AgentConfig, ProviderConfig } from "@one-agent/core";
+import { Switch } from "@/components/ui/Switch";
 
 interface ToolInfo {
   name: string;
@@ -131,17 +132,18 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
         ) : (
           <div className="tool-list">
             {tools.map((t) => (
-              <label key={t.name} className="tool-item">
-                <input
-                  type="checkbox"
+              <div key={t.name} className="tool-item tool-item-switch">
+                <div className="tool-item-info">
+                  <div className="tool-item-name">
+                    <code>{t.name}</code>
+                    {t.dangerous && <em className="danger-tag">危险</em>}
+                  </div>
+                </div>
+                <Switch
                   checked={toolFlags[t.name] ?? false}
-                  onChange={(e) => setToolFlags((f) => ({ ...f, [t.name]: e.target.checked }))}
+                  onCheckedChange={(c) => setToolFlags((f) => ({ ...f, [t.name]: c }))}
                 />
-                <span>
-                  <code>{t.name}</code>
-                  {t.dangerous && <em className="danger-tag">危险</em>}
-                </span>
-              </label>
+              </div>
             ))}
           </div>
         )}
@@ -149,7 +151,7 @@ export default function SessionSettings({ sessionId, agent }: { sessionId: strin
         <label className="danger-toggle">
           <input type="checkbox" checked={allowDangerous} onChange={(e) => setAllowDangerous(e.target.checked)} />
           <span>
-            允许执行危险工具（run_local_command 等）
+            允许执行危险工具（bash 等）
             <small>默认拒绝；开启后本会话的模型可直接调用危险工具</small>
           </span>
         </label>

@@ -4,9 +4,9 @@ import { dirname } from "node:path";
 import { defineTool } from "../define.ts";
 import { resolveToolPath } from "../../utils.ts";
 
-export const writeLocalFileTool = defineTool({
-  name: "write_local_file",
-  description: "写入/覆盖本地文件（UTF-8）。自动创建父目录。相对路径以会话工作目录为基准。",
+export const writeTool = defineTool({
+  name: "write",
+  description: "创建或覆盖文件（UTF-8）。自动创建父目录。相对路径以会话工作目录为基准。",
   schema: z.object({
     path: z.string().min(1),
     content: z.string().max(200_000),

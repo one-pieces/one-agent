@@ -1,4 +1,4 @@
-/** 一次性验证：真实模型 + 多轮历史连续性（calculator 引用上一轮结果） */
+/** 一次性验证：真实模型 + 多轮历史连续性（write 写入 → 下一轮 read 读取同一文件） */
 import { Agent, ToolRegistry, builtinTools } from "../src/index.ts";
 
 const registry = new ToolRegistry();
@@ -8,7 +8,7 @@ const agent = new Agent(
   {
     id: "demo",
     name: "演示",
-    instructions: "你是计算助手。需要计算时调用 calculator，回答要简洁。",
+    instructions: "你是文件助手。创建/覆盖文件用 write，读取文件用 read，回答要简洁。",
     model: {
       provider: "openai-compatible",
       baseUrl: process.env.OPENAI_BASE_URL ?? "http://localhost:11434/v1",
@@ -16,13 +16,16 @@ const agent = new Agent(
       apiKey: "not-needed",
       temperature: 0.3,
     },
-    tools: [{ name: "calculator", enabled: true }],
+    tools: [
+      { name: "write", enabled: true },
+      { name: "read", enabled: true },
+    ],
     maxIterations: 4,
   },
   { tools: registry },
 );
 
-for (const q of ["算一下 2^10", "把刚才的结果加 5"]) {
+for (const q of ["用 write 创建 demo.txt，内容为 42", "用 read 读取 demo.txt 的内容，告诉我里面是什么"]) {
   let text = "";
   for await (const c of agent.run(q)) {
     if (c.type === "text") text += c.delta;

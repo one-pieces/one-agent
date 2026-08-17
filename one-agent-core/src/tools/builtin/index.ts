@@ -1,24 +1,34 @@
 import type { ToolSpec } from "../../types.ts";
-import { calculatorTool } from "./calculator.ts";
-import { readLocalFileTool } from "./read_local_file.ts";
-import { writeLocalFileTool } from "./write_local_file.ts";
-import { listLocalDirTool } from "./list_local_dir.ts";
+import { readTool } from "./read.ts";
+import { writeTool } from "./write.ts";
+import { editTool } from "./edit.ts";
+import { bashTool } from "./bash.ts";
+import { grepTool } from "./grep.ts";
+import { findTool } from "./find.ts";
+import { lsTool } from "./ls.ts";
 import { webSearchTool } from "./web_search.ts";
-import { runLocalCommandTool } from "./run_local_command.ts";
 
-/** 内置工具全集（按需注册进 ToolRegistry） */
+/**
+ * 内置工具全集（按需注册进 ToolRegistry）。
+ * 工具目录：read / write / edit / bash / grep / find / ls / web_search
+ * （bash 标记 dangerous，AgentForm 默认关闭；knowledge_search 为应用层动态工具）
+ */
 export const builtinTools: ToolSpec[] = [
-  calculatorTool,
-  readLocalFileTool,
-  writeLocalFileTool,
-  listLocalDirTool,
+  readTool,
+  writeTool,
+  editTool,
+  bashTool,
+  grepTool,
+  findTool,
+  lsTool,
   webSearchTool,
-  runLocalCommandTool,
 ];
 
-export { calculatorTool, evaluate } from "./calculator.ts";
-export { readLocalFileTool } from "./read_local_file.ts";
-export { writeLocalFileTool } from "./write_local_file.ts";
-export { listLocalDirTool } from "./list_local_dir.ts";
+export { readTool } from "./read.ts";
+export { writeTool } from "./write.ts";
+export { editTool } from "./edit.ts";
+export { bashTool } from "./bash.ts";
+export { grepTool } from "./grep.ts";
+export { findTool } from "./find.ts";
+export { lsTool } from "./ls.ts";
 export { webSearchTool } from "./web_search.ts";
-export { runLocalCommandTool } from "./run_local_command.ts";

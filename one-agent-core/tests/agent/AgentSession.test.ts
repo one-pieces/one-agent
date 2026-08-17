@@ -3,14 +3,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Agent } from "../../src/agent/index.ts";
-import { ToolRegistry, calculatorTool } from "../../src/tools/index.ts";
+import { ToolRegistry } from "../../src/tools/index.ts";
 import { InMemorySessionStore, SqliteSessionStore } from "../../src/session/index.ts";
 import { ScriptedProvider } from "../helpers/scripted-provider.ts";
+import { testCalculatorTool } from "../helpers/calculator-tool.ts";
 import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.ts";
 
 function makeAgent(provider: ScriptedProvider, store?: InstanceType<typeof InMemorySessionStore> | SqliteSessionStore, extra?: Partial<AgentConfig>) {
   const registry = new ToolRegistry();
-  registry.add(calculatorTool);
+  registry.add(testCalculatorTool);
   return new Agent(
     {
       id: "test",

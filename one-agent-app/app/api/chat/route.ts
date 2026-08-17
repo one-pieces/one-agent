@@ -7,7 +7,7 @@ export const runtime = "nodejs";
  * POST /api/chat — SSE 流式对话
  * body: { agentId, sessionId, message, modelOverride?, toolOverrides?, allowDangerous? }
  * modelOverride/toolOverrides：请求级覆盖（未提供则用会话 meta 中的覆盖）
- * allowDangerous：默认 false —— 危险工具（run_local_command 等）默认拒绝，需显式开启
+ * allowDangerous：默认 false —— 危险工具（bash 等）默认拒绝，需显式开启
  * 响应：text/event-stream，每行 `data: <StreamChunk JSON>`（契约见 contracts/stream-protocol.md）
  */
 export async function POST(request: Request) {

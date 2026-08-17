@@ -50,12 +50,12 @@ UI 对齐 eve-agent：左侧图标导航栏 + 可折叠会话侧边栏（显示�
 ## 状态
 
 - [x] M0：项目骨架 + contracts/ + Provider 层（OpenAI 兼容 + Anthropic）+ 测试 + 真实流式 demo
-- [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（calculator/web_search/文件工具）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
+- [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（read/write/edit/bash/grep/find/ls/web_search）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
 - [x] M2：会话与记忆（Session/SessionStore 内存 + SQLite 持久化、消息 id 稳定、窗口裁剪 + compaction 摘要、重启恢复）
 - [x] M3：应用层 v1（Next.js 对话页 + SSE 桥 + Agent 管理 UI 动态配置 + SQLite 存储，浏览器全流程验证）
 - [x] M4：动态配置强化（会话级 model/tool 覆盖存 session.meta 每轮自动生效、请求级 override 优先、多会话隔离）
 - [x] M5：增强（MCP 桥接动态接入外部工具、工具沙箱 worker_threads、危险工具审批默认拒绝、请求日志 /api/logs、API key AES-256-GCM 加密存储）
-- [ ] 文件系统沙盒：当前工具沙箱仅 worker_threads 线程级隔离（崩溃/超时），run_local_command 等命令仍可访问全盘；需 OS 级限制只读写会话工作区（macOS sandbox-exec / Linux 容器 / 权限降级）
+- [ ] 文件系统沙盒：当前工具沙箱仅 worker_threads 线程级隔离（崩溃/超时），bash 等命令仍可访问全盘；需 OS 级限制只读写会话工作区（macOS sandbox-exec / Linux 容器 / 权限降级）
 - [x] UI 改造（对齐 eve-agent）：左侧图标导航 + 可折叠会话侧边栏（方案 A：当前 Agent 会话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 危险工具会话开关 + 消息删除 + 会话自动标题
 - [x] 知识库完整 RAG（对齐 eve-agent）：多文件上传（.txt/.md/.mdx）→ 每文件独立向量索引（none→building→done/error，SSE 进度）+ Transformers.js 本地向量化（BAAI/bge-m3，1024 维，hf-mirror 兜底）+ 混合检索（BM25+向量+RRF）+ 可选 cross-encoder 重排 + 向量索引/分块查看器 + `knowledge_search` 工具（Agent 按需调用）
 - [ ] M6（可选）：Python 内核（契约冻结后）

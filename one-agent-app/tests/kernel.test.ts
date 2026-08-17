@@ -19,7 +19,7 @@ class RecordingProvider implements LanguageProvider {
   async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
     this.calls.push(opts);
     if (this.emitToolCall) {
-      yield { type: "tool_call", id: "c1", name: "run_local_command", input: { command: "echo hi" } };
+      yield { type: "tool_call", id: "c1", name: "bash", input: { command: "echo hi" } };
     }
     yield { type: "text", delta: "ok" };
     yield { type: "usage", inputTokens: 1, outputTokens: 1 };
@@ -137,7 +137,7 @@ describe("InProcessKernel 会话覆盖（M4）", () => {
     const { kernel, provider } = makeKernel(true);
     const dangerousConfig: AgentConfig = {
       ...agentConfig,
-      tools: [{ name: "run_local_command", enabled: true }],
+      tools: [{ name: "bash", enabled: true }],
     };
     const session = kernel.createSession("test-agent");
     const chunks: StreamChunk[] = [];
@@ -158,7 +158,7 @@ describe("InProcessKernel 会话覆盖（M4）", () => {
     const { kernel, provider } = makeKernel(true);
     const dangerousConfig: AgentConfig = {
       ...agentConfig,
-      tools: [{ name: "run_local_command", enabled: true }],
+      tools: [{ name: "bash", enabled: true }],
     };
     const session = kernel.createSession("test-agent");
     const chunks: StreamChunk[] = [];

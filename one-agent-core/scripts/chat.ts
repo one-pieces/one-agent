@@ -19,7 +19,7 @@ const agent = new Agent(
     id: "demo",
     name: "one-agent 演示助手",
     instructions:
-      "你是 one-agent 的演示助手。需要计算时调用 calculator；读取文件用 read_local_file；列目录用 list_local_dir；查实时资料用 web_search。使用工具时先简短说明意图，工具结果要简洁总结给用户。",
+      "你是 one-agent 的演示助手。读取文件用 read；创建/覆盖文件用 write；局部修改用 edit；列目录用 ls；按文件名查找用 find；搜内容用 grep；查实时资料用 web_search。使用工具时先简短说明意图，工具结果要简洁总结给用户。",
     model: {
       provider: "openai-compatible",
       baseUrl: env("OPENAI_BASE_URL") ?? "http://localhost:11434/v1",
@@ -28,12 +28,14 @@ const agent = new Agent(
       temperature: 0.5,
     },
     tools: [
-      { name: "calculator", enabled: true },
+      { name: "read", enabled: true },
+      { name: "write", enabled: true },
+      { name: "edit", enabled: true },
+      { name: "grep", enabled: true },
+      { name: "find", enabled: true },
+      { name: "ls", enabled: true },
       { name: "web_search", enabled: true },
-      { name: "read_local_file", enabled: true },
-      { name: "list_local_dir", enabled: true },
-      { name: "write_local_file", enabled: false },
-      { name: "run_local_command", enabled: false }, // 危险工具默认关闭
+      { name: "bash", enabled: false }, // 危险工具默认关闭
     ],
     maxIterations: 6,
   },

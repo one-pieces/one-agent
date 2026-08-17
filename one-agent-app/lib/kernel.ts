@@ -111,7 +111,7 @@ export class InProcessKernel {
     const toolOverrides = req.toolOverrides ?? meta.toolOverrides;
 
     const agent = this.getOrCreate(req.agentConfig);
-    // 确保会话工作区已存在（run_local_command 等以它为 cwd 的工具需要目录就绪）
+    // 确保会话工作区已存在（bash 等以它为 cwd 的工具需要目录就绪）
     mkdirSync(this.sessionWorkspacePath(req.sessionId), { recursive: true });
     yield* agent.run(req.message, {
       sessionId: req.sessionId,

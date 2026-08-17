@@ -6,12 +6,12 @@ import { defineTool } from "../define.ts";
 const execAsync = promisify(exec);
 
 /**
- * 危险工具：在本机执行 shell 命令。
- * 默认不启用（demo 配置 enabled:false）；启用前需确认安全策略。
+ * 危险工具：在终端运行 shell 命令。
+ * 默认不启用（AgentForm 中 dangerous 默认关闭）；启用前需确认安全策略。
  */
-export const runLocalCommandTool = defineTool({
-  name: "run_local_command",
-  description: "在本机执行 shell 命令。仅返回前 5000 字符。危险操作请谨慎。",
+export const bashTool = defineTool({
+  name: "bash",
+  description: "在终端运行 Shell 命令。仅返回前 5000 字符。危险操作请谨慎。",
   schema: z.object({
     command: z.string().min(1).max(2000),
     cwd: z.string().optional(),

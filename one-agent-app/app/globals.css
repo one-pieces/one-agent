@@ -946,6 +946,30 @@ h3 {
   margin-left: 6px;
 }
 
+/* 工具开关行（Switch 版）：名称+说明在左，Switch 在右 */
+.tool-item-switch {
+  align-items: center;
+  justify-content: space-between;
+  cursor: default;
+}
+
+.tool-item-switch .tool-item-info {
+  min-width: 0; /* 允许长描述换行，不被 Switch 挤压 */
+}
+
+.tool-item-switch .tool-item-name {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.tool-item-switch code {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
 .danger-toggle {
   display: flex;
   gap: 8px;

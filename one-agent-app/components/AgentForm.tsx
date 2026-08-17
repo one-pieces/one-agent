@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { AgentConfig } from "@one-agent/core";
 import type { KnowledgeBase } from "@/lib/db";
 import Select from "@/components/ui/Select";
+import { Switch } from "@/components/ui/Switch";
 
 interface ToolInfo {
   name: string;
@@ -200,14 +201,16 @@ export default function AgentForm({
           {tools.map((t) => {
             const enabled = form.tools.find((x) => x.name === t.name)?.enabled ?? false;
             return (
-              <label key={t.name} className="tool-item">
-                <input type="checkbox" checked={enabled} onChange={(e) => toggleTool(t.name, e.target.checked)} />
-                <span>
-                  <code>{t.name}</code>
-                  {t.dangerous && <em className="danger-tag">危险</em>}
+              <div key={t.name} className="tool-item tool-item-switch">
+                <div className="tool-item-info">
+                  <div className="tool-item-name">
+                    <code>{t.name}</code>
+                    {t.dangerous && <em className="danger-tag">危险</em>}
+                  </div>
                   <small>{t.description}</small>
-                </span>
-              </label>
+                </div>
+                <Switch checked={enabled} onCheckedChange={(c) => toggleTool(t.name, c)} />
+              </div>
             );
           })}
         </div>
@@ -226,13 +229,15 @@ export default function AgentForm({
           {knowledgeBases.map((kb) => {
             const enabled = (form.knowledgeBaseIds ?? []).includes(kb.id);
             return (
-              <label key={kb.id} className="tool-item">
-                <input type="checkbox" checked={enabled} onChange={() => toggleKnowledgeBase(kb.id)} />
-                <span>
-                  <code>{kb.name}</code>
+              <div key={kb.id} className="tool-item tool-item-switch">
+                <div className="tool-item-info">
+                  <div className="tool-item-name">
+                    <code>{kb.name}</code>
+                  </div>
                   <small>{kb.description || kb.id}</small>
-                </span>
-              </label>
+                </div>
+                <Switch checked={enabled} onCheckedChange={() => toggleKnowledgeBase(kb.id)} />
+              </div>
             );
           })}
         </div>

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { Agent } from "../../src/agent/index.ts";
-import { calculatorTool, ToolRegistry } from "../../src/tools/index.ts";
+import { ToolRegistry } from "../../src/tools/index.ts";
 import { ScriptedProvider } from "../helpers/scripted-provider.ts";
+import { testCalculatorTool } from "../helpers/calculator-tool.ts";
 import type { AgentConfig, LLMMessage, StreamChunk } from "../../src/index.ts";
 
 function makeAgent(provider: ScriptedProvider, extra?: Partial<AgentConfig>) {
   const registry = new ToolRegistry();
-  registry.add(calculatorTool);
+  registry.add(testCalculatorTool);
   return new Agent(
     {
       id: "test",

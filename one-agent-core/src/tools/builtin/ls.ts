@@ -3,8 +3,8 @@ import { readdir } from "node:fs/promises";
 import { defineTool } from "../define.ts";
 import { resolveToolPath } from "../../utils.ts";
 
-export const listLocalDirTool = defineTool({
-  name: "list_local_dir",
+export const lsTool = defineTool({
+  name: "ls",
   description: "列出目录下的文件和子目录（目录名带 / 后缀）。相对路径以会话工作目录为基准。",
   schema: z.object({ path: z.string().min(1) }),
   async execute(ctx, { path }) {
