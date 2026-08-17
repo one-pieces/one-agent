@@ -5,12 +5,37 @@ import { randomUUID } from "node:crypto";
 import type { AgentConfig } from "@one-agent/core";
 import { decryptSecret, encryptSecret, isEncrypted } from "./crypto.ts";
 
+/** 向量编码：number[]/Float32Array → Float32Array 二进制 BLOB（4B/维，约为 JSON 文本的 1/3） */
+export function embeddingToBlob(embedding: number[] | Float32Array): Uint8Array {
+  const arr = embedding instanceof Float32Array ? embedding : new Float32Array(embedding);
+  return new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+
+/** 向量解码：兼容 BLOB（新格式）与 JSON 文本（旧格式）两种落库 */
+export function decodeEmbedding(value: string | Uint8Array | null | undefined): Float32Array {
+  if (value == null) return new Float32Array(0);
+  if (typeof value === "string") return Float32Array.from(JSON.parse(value) as number[]);
+  return new Float32Array(value.buffer, value.byteOffset, value.byteLength / 4);
+}
+
+/** 多个知识库 id 的检索缓存键（顺序无关） */
+function kbCacheKey(ids: string[]): string {
+  return [...ids].sort().join("|");
+}
+
 /**
  * 应用层 Agent 配置存储（SQLite，node:sqlite 零依赖）。
  * 只存 AgentConfig（JSON 一等数据）；model.apiKey 加密存储（AES-256-GCM）。
  */
 export class AppDatabase {
   private db: DatabaseSync;
+
+  /** 数据版本：chunk/向量写入时自增，检索缓存（分块/向量/BM25）据此失效 */
+  private version = 0;
+  /** kbIds → 分块缓存（按 version 失效） */
+  private chunksCache = new Map<string, { v: number; chunks: KnowledgeChunk[] }>();
+  /** kbIds → 向量缓存（已解码为 Float32Array，避免每次查询重复解码/JSON.parse） */
+  private vecCache = new Map<string, { v: number; vectors: StoredVector[] }>();
 
   constructor(filePath = join(process.cwd(), "data", "one-agent.db")) {
     mkdirSync(dirname(filePath), { recursive: true });
@@ -59,7 +84,7 @@ export class AppDatabase {
         knowledge_base_id TEXT NOT NULL,
         file_id           TEXT NOT NULL,
         dim               INTEGER NOT NULL,
-        embedding         TEXT NOT NULL
+        embedding         BLOB NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_knowledge_files_kb   ON knowledge_files(knowledge_base_id);
       CREATE INDEX IF NOT EXISTS idx_knowledge_chunks_kb  ON knowledge_chunks(knowledge_base_id);
@@ -196,6 +221,7 @@ export class AppDatabase {
 
   /** 删除知识库：级联删除文件、分块与向量索引 */
   deleteKnowledgeBase(id: string): void {
+    this.version++;
     this.db.prepare("DELETE FROM knowledge_embeddings WHERE knowledge_base_id = ?").run(id);
     this.db.prepare("DELETE FROM knowledge_chunks WHERE knowledge_base_id = ?").run(id);
     this.db.prepare("DELETE FROM knowledge_files WHERE knowledge_base_id = ?").run(id);
@@ -269,6 +295,7 @@ export class AppDatabase {
   }
 
   deleteKnowledgeFile(knowledgeBaseId: string, fileId: string): boolean {
+    this.version++;
     this.db.prepare("DELETE FROM knowledge_embeddings WHERE file_id = ?").run(fileId);
     this.db.prepare("DELETE FROM knowledge_chunks WHERE file_id = ?").run(fileId);
     const res = this.db
@@ -279,12 +306,14 @@ export class AppDatabase {
 
   /** 只清某个文件的向量索引与分块（保留文件行，状态回到 none） */
   deleteFileIndex(fileId: string): void {
+    this.version++;
     this.db.prepare("DELETE FROM knowledge_embeddings WHERE file_id = ?").run(fileId);
     this.db.prepare("DELETE FROM knowledge_chunks WHERE file_id = ?").run(fileId);
   }
 
   /** 重建某个文件的文本分块（先清后插） */
   replaceFileChunks(knowledgeBaseId: string, fileId: string, chunks: string[]): void {
+    this.version++;
     this.db.prepare("DELETE FROM knowledge_chunks WHERE file_id = ?").run(fileId);
     const stmt = this.db.prepare(
       "INSERT INTO knowledge_chunks (id, knowledge_base_id, file_id, chunk_index, content) VALUES (?, ?, ?, ?, ?)",
@@ -309,11 +338,14 @@ export class AppDatabase {
       .all(knowledgeBaseId, fileId) as unknown as KnowledgeChunk[];
   }
 
-  /** 取多个知识库的全部分块（BM25 检索），附带来源文件名 */
+  /** 取多个知识库的全部分块（BM25 检索），附带来源文件名；带版本缓存，写入后自动失效 */
   getChunksForKnowledgeBases(knowledgeBaseIds: string[]): KnowledgeChunk[] {
     if (knowledgeBaseIds.length === 0) return [];
+    const key = kbCacheKey(knowledgeBaseIds);
+    const hit = this.chunksCache.get(key);
+    if (hit && hit.v === this.version) return hit.chunks;
     const placeholders = knowledgeBaseIds.map(() => "?").join(", ");
-    return this.db
+    const chunks = this.db
       .prepare(
         `SELECT c.id, c.knowledge_base_id AS knowledgeBaseId, c.file_id AS fileId, c.chunk_index AS chunkIndex, c.content, f.name AS fileName
          FROM knowledge_chunks c
@@ -322,20 +354,23 @@ export class AppDatabase {
          ORDER BY c.knowledge_base_id, c.file_id, c.chunk_index`,
       )
       .all(...knowledgeBaseIds) as unknown as KnowledgeChunk[];
+    this.chunksCache.set(key, { v: this.version, chunks });
+    return chunks;
   }
 
-  /** 保存某文件的分块向量（重建时先清后插） */
+  /** 保存某文件的分块向量（重建时先清后插）；以 BLOB（Float32Array 二进制）落库 */
   replaceEmbeddings(
     knowledgeBaseId: string,
     fileId: string,
     entries: Array<{ chunkId: string; embedding: number[] }>,
   ): void {
+    this.version++;
     this.db.prepare("DELETE FROM knowledge_embeddings WHERE file_id = ?").run(fileId);
     const stmt = this.db.prepare(
       "INSERT INTO knowledge_embeddings (chunk_id, knowledge_base_id, file_id, dim, embedding) VALUES (?, ?, ?, ?, ?)",
     );
     for (const e of entries) {
-      stmt.run(e.chunkId, knowledgeBaseId, fileId, e.embedding.length, JSON.stringify(e.embedding));
+      stmt.run(e.chunkId, knowledgeBaseId, fileId, e.embedding.length, embeddingToBlob(e.embedding));
     }
   }
 
@@ -355,6 +390,32 @@ export class AppDatabase {
          ORDER BY e.knowledge_base_id, c.file_id, c.chunk_index`,
       )
       .all(...knowledgeBaseIds) as unknown as KnowledgeEmbeddingRow[];
+  }
+
+  /** 取多个知识库的向量（已解码为 Float32Array，带分块文本与来源）；带版本缓存，写入后自动失效 */
+  getVectorChunks(knowledgeBaseIds: string[]): StoredVector[] {
+    if (knowledgeBaseIds.length === 0) return [];
+    const key = kbCacheKey(knowledgeBaseIds);
+    const hit = this.vecCache.get(key);
+    if (hit && hit.v === this.version) return hit.vectors;
+    const vectors: StoredVector[] = this.getEmbeddingsForKnowledgeBases(knowledgeBaseIds).map((r) => ({
+      chunk: {
+        id: r.chunkId,
+        knowledgeBaseId: r.knowledgeBaseId,
+        fileId: r.fileId,
+        chunkIndex: r.chunkIndex,
+        content: r.content,
+        fileName: r.fileName,
+      },
+      embedding: decodeEmbedding(r.embedding),
+    }));
+    this.vecCache.set(key, { v: this.version, vectors });
+    return vectors;
+  }
+
+  /** 当前数据版本：chunk/向量写入时自增，供上层缓存（如 BM25）做失效判断 */
+  getDataVersion(): number {
+    return this.version;
   }
 
   /** 向量索引查看：分页 + 来源过滤，返回 { total, sources, items } */
@@ -476,21 +537,27 @@ export interface KnowledgeChunk {
   fileName?: string;
   /** 向量维度（分块已建索引时附带） */
   dim?: number | null;
-  /** embedding JSON 数组字符串（分块已建索引时附带） */
-  embedding?: string | null;
+  /** 向量（分块已建索引时附带）：BLOB（新格式）或旧版 JSON 数组字符串 */
+  embedding?: string | Uint8Array | null;
 }
 
 /** 向量行：embedding + 联表附带的分块文本与来源 */
 export interface KnowledgeEmbeddingRow {
   chunkId: string;
   dim: number;
-  /** JSON 数组字符串 */
-  embedding: string;
+  /** BLOB（新格式）或旧版 JSON 数组字符串 */
+  embedding: string | Uint8Array;
   knowledgeBaseId: string;
   fileId: string;
   chunkIndex: number;
   content: string;
   fileName: string;
+}
+
+/** 检索用向量：embedding 已解码为 Float32Array（避免每次查询重复 JSON.parse/解码） */
+export interface StoredVector {
+  chunk: KnowledgeChunk;
+  embedding: Float32Array;
 }
 
 interface KnowledgeBaseRow {

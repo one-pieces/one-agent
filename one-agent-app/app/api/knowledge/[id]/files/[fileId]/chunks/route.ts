@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import { db, decodeEmbedding } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -17,13 +17,13 @@ export async function GET(_request: Request, { params }: Params) {
     file: { id: file.id, name: file.name, indexStatus: file.indexStatus, chunkCount: file.chunkCount },
     total: chunks.length,
     items: chunks.map((c) => {
-      const embedding = c.embedding ? (JSON.parse(c.embedding) as number[]) : null;
+      const embedding = c.embedding ? decodeEmbedding(c.embedding) : null;
       return {
         chunkId: c.id,
         fileName: file.name,
         chunkIndex: c.chunkIndex,
         dim: c.dim ?? embedding?.length ?? 0,
-        embeddingPreview: embedding ? embedding.slice(0, 5) : [],
+        embeddingPreview: embedding ? Array.from(embedding.slice(0, 5)) : [],
         content: c.content,
       };
     }),

@@ -1,7 +1,7 @@
 import { db, type AppDatabase } from "../db";
 import { chunkText } from "./chunker";
 import { encodeTexts } from "./embedder";
-import { hybridSearch, type ScoredChunk, type VectorChunk } from "./retriever";
+import { buildBM25, hybridSearchWithBm25, type ScoredChunk, type VectorChunk } from "./retriever";
 import { rerank as rerankDefault } from "./reranker";
 
 /**
@@ -85,26 +85,18 @@ export interface SearchDeps {
   rerankImpl?: typeof rerankDefault;
 }
 
+/** 检索期 BM25 索引缓存：按 store 实例隔离（测试/多进程互不污染），dataVersion 变化时失效 */
+const bm25Cache = new WeakMap<AppDatabase, Map<string, { v: number; bm25: ReturnType<typeof buildBM25> }>>();
+
 export async function searchKnowledge(
   kbIds: string[],
   query: string,
   opts: { topK?: number; useRerank?: boolean; deps?: SearchDeps; store?: AppDatabase } = {},
 ): Promise<ScoredChunk[]> {
   const { topK = 5, useRerank = false, deps = {}, store = db } = opts;
+  // 分块/向量均走 store 的版本化缓存（写入后自动失效），避免每次查询全量拉取 + 重复解码
   const chunks = store.getChunksForKnowledgeBases(kbIds);
-  const vectors: VectorChunk[] = store
-    .getEmbeddingsForKnowledgeBases(kbIds)
-    .map((r) => ({
-      chunk: {
-        id: r.chunkId,
-        knowledgeBaseId: r.knowledgeBaseId,
-        fileId: r.fileId,
-        chunkIndex: r.chunkIndex,
-        content: r.content,
-        fileName: r.fileName,
-      },
-      embedding: JSON.parse(r.embedding) as number[],
-    }));
+  const vectors: VectorChunk[] = store.getVectorChunks(kbIds);
 
   // 查询向量：有索引才需要；embedder 失败（如模型未下载）时降级为纯 BM25
   let queryEmbedding: number[] | null = null;
@@ -117,7 +109,23 @@ export async function searchKnowledge(
     }
   }
 
-  let results = hybridSearch(chunks, vectors, query, queryEmbedding, { topK: useRerank ? Math.max(topK, 20) : topK });
+  // BM25 索引按 store+知识库 缓存，dataVersion 变化（chunk 写入）时重建，避免每次查询重新分词
+  const cacheKey = [...kbIds].sort().join("|");
+  const storeVersion = store.getDataVersion();
+  let bm25Entry = bm25Cache.get(store)?.get(cacheKey);
+  if (!bm25Entry || bm25Entry.v !== storeVersion) {
+    bm25Entry = { v: storeVersion, bm25: buildBM25(chunks) };
+    let m = bm25Cache.get(store);
+    if (!m) {
+      m = new Map();
+      bm25Cache.set(store, m);
+    }
+    m.set(cacheKey, bm25Entry);
+  }
+
+  let results = hybridSearchWithBm25(chunks, bm25Entry.bm25, vectors, query, queryEmbedding, {
+    topK: useRerank ? Math.max(topK, 20) : topK,
+  });
 
   if (useRerank && results.length > 0) {
     try {

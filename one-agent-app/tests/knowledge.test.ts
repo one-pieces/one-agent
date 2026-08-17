@@ -2,9 +2,9 @@ import { describe, it, expect, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AppDatabase, type KnowledgeChunk } from "../lib/db";
+import { AppDatabase, decodeEmbedding, embeddingToBlob, type KnowledgeChunk } from "../lib/db";
 import { chunkText } from "../lib/rag/chunker";
-import { hybridSearch, cosineSimilarity } from "../lib/rag/retriever";
+import { hybridSearch, cosineSimilarity, vectorSearch } from "../lib/rag/retriever";
 import { buildFileIndex, searchKnowledge } from "../lib/rag/indexer";
 import { createKnowledgeSearchTool } from "../lib/knowledge-tool";
 
@@ -118,5 +118,91 @@ describe("RAG：索引构建与检索（假 embedder）", () => {
     store.deleteKnowledgeBase(kb.id);
     expect(store.getKnowledgeBase(kb.id)).toBeNull();
     expect(store.getEmbeddingsForKnowledgeBases([kb.id])).toHaveLength(0);
+  });
+});
+
+describe("向量存储：BLOB 落库与检索缓存", () => {
+  it("replaceEmbeddings 以 BLOB（Float32Array 二进制）落库，decodeEmbedding 还原", () => {
+    const store = makeStore();
+    const kb = store.createKnowledgeBase("kb");
+    const file = store.addKnowledgeFile(kb.id, "f.md", 10, "内容");
+    store.replaceFileChunks(kb.id, file.id, ["块1", "块2"]);
+    const chunks = store.getChunksForFile(kb.id, file.id);
+
+    store.replaceEmbeddings(kb.id, file.id, [
+      { chunkId: chunks[0]!.id, embedding: [0.5, -0.25, 1.0] },
+      { chunkId: chunks[1]!.id, embedding: [-0.5, 0.25, 1.0] },
+    ]);
+
+    // 原始行应为 BLOB（Uint8Array），而非旧版 JSON 字符串
+    const rows = store.getEmbeddingsForKnowledgeBases([kb.id]);
+    expect(rows.length).toBe(2);
+    expect(rows[0]!.embedding).toBeInstanceOf(Uint8Array);
+    expect(typeof rows[0]!.embedding).not.toBe("string");
+
+    const v = decodeEmbedding(rows[0]!.embedding);
+    expect(v).toBeInstanceOf(Float32Array);
+    expect(Array.from(v)).toEqual([0.5, -0.25, 1.0]); // 均为 Float32 可精确表示的值
+    expect(Array.from(decodeEmbedding(rows[1]!.embedding))).toEqual([-0.5, 0.25, 1.0]);
+  });
+
+  it("embeddingToBlob / decodeEmbedding 兼容旧版 JSON 文本向量", () => {
+    const legacy = JSON.stringify([0.5, -0.25, 1.5]);
+    expect(Array.from(decodeEmbedding(legacy))).toEqual([0.5, -0.25, 1.5]);
+    // 空值安全
+    expect(decodeEmbedding(null).length).toBe(0);
+    expect(decodeEmbedding(undefined).length).toBe(0);
+    // 编解码往返
+    const blob = embeddingToBlob([1, 2, 3, 4]);
+    expect(blob).toBeInstanceOf(Uint8Array);
+    expect(blob.byteLength).toBe(16); // 4 维 × 4B
+    expect(Array.from(decodeEmbedding(blob))).toEqual([1, 2, 3, 4]);
+  });
+
+  it("getVectorChunks 命中缓存（同一引用），写入后按版本失效重建", () => {
+    const store = makeStore();
+    const kb = store.createKnowledgeBase("kb");
+    const f1 = store.addKnowledgeFile(kb.id, "a.md", 10, "内容A");
+    store.replaceFileChunks(kb.id, f1.id, ["块A"]);
+    const c1 = store.getChunksForFile(kb.id, f1.id);
+    store.replaceEmbeddings(kb.id, f1.id, [{ chunkId: c1[0]!.id, embedding: [1, 0, 0] }]);
+
+    const v1 = store.getVectorChunks([kb.id]);
+    const v2 = store.getVectorChunks([kb.id]);
+    expect(v2).toBe(v1); // 命中缓存：同一引用，未重复解码
+
+    // 写入新文件 → version 自增 → 缓存失效重建
+    const f2 = store.addKnowledgeFile(kb.id, "b.md", 10, "内容B");
+    store.replaceFileChunks(kb.id, f2.id, ["块B"]);
+    const c2 = store.getChunksForFile(kb.id, f2.id);
+    store.replaceEmbeddings(kb.id, f2.id, [{ chunkId: c2[0]!.id, embedding: [0, 1, 0] }]);
+
+    const v3 = store.getVectorChunks([kb.id]);
+    expect(v3).not.toBe(v1);
+    expect(v3.length).toBe(2);
+    // 文件行按随机 id 排序，不保证插入序 → 按 fileId 定位断言
+    const b = v3.find((x) => x.chunk.fileId === f2.id)!;
+    const a = v3.find((x) => x.chunk.fileId === f1.id)!;
+    expect(Array.from(b.embedding)).toEqual([0, 1, 0]);
+    expect(Array.from(a.embedding)).toEqual([1, 0, 0]);
+  });
+
+  it("vectorSearch 有界 top-N 与全量排序结果一致", () => {
+    const chunks: KnowledgeChunk[] = [0, 1, 2, 3, 4].map((i) => ({
+      id: String(i),
+      knowledgeBaseId: "kb",
+      fileId: "f",
+      chunkIndex: i,
+      content: `块${i}`,
+    }));
+    const vectors = chunks.map((chunk, i) => ({
+      chunk,
+      // 方向随 i 向 query 靠拢：similarity = (i+1)/sqrt((i+1)²+1)，严格递增
+      embedding: new Float32Array(16).fill(0).map((_, d) => (d === 0 ? i + 1 : d === 1 ? 1 : 0)),
+    }));
+    const q = new Float32Array(16).fill(0);
+    q[0] = 1;
+    const top = vectorSearch(vectors, q, 3);
+    expect(top.map((c) => c.id)).toEqual(["4", "3", "2"]);
   });
 });
