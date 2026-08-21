@@ -125,36 +125,59 @@ export async function* agentLoop(
       return;
     }
 
-    // 执行工具（当前串行；可后续并行化）
+    // 距离上限还剩 1 轮时，提示模型停止探索、基于已有信息收尾（避免"读一半被掐断"）
+    if (i >= maxIter - 2) {
+      messages.push({
+        role: "system",
+        content:
+          "[系统提示] 本轮之后迭代次数将耗尽。如果还有未完成的探索，请停止继续调用工具，直接基于已获取的信息给出总结或最终回答。",
+      });
+    }
+
+    // 执行工具（同一轮内的多个工具调用并行执行，减少总耗时；结果按原顺序回填保持契约稳定）
     const toolCtx: ToolContext = { cwd: opts.cwd };
+    // 先发出 tool_call 事件（保持顺序稳定），再并行执行
     for (const tc of toolCalls) {
       yield { type: "tool_call", id: tc.id, name: tc.name, input: tc.input };
       if (opts.onToolCall) await opts.onToolCall(tc);
-
-      const tool = agent.tools.get(tc.name);
-      const isDangerous = tool?.meta?.dangerous ?? false;
-      if (isDangerous && opts.onApproval) {
-        const approved = await opts.onApproval(tc, tool!);
-        if (!approved) {
-          const reason = "已拒绝：危险操作未获批准";
-          yield { type: "tool_result", id: tc.id, ok: false, output: reason };
-          messages.push({ role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id });
-          continue;
+    }
+    const toolResults = await Promise.all(
+      toolCalls.map(async (tc) => {
+        const tool = agent.tools.get(tc.name);
+        const isDangerous = tool?.meta?.dangerous ?? false;
+        if (isDangerous && opts.onApproval) {
+          const approved = await opts.onApproval(tc, tool!);
+          if (!approved) {
+            const reason = "已拒绝：危险操作未获批准";
+            return {
+              tc,
+              result: { type: "tool_result", id: tc.id, ok: false, output: reason } as StreamChunk,
+              message: { role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id } as LLMMessage,
+            };
+          }
         }
-      }
 
-      const result = await agent.tools.execute(toolCtx, tc);
-      yield {
-        type: "tool_result",
-        id: tc.id,
-        ok: result.ok,
-        output: result.ok ? result.output : result.error,
-      };
-      messages.push({
-        role: "tool",
-        content: JSON.stringify(result.ok ? result.output : { error: result.error }),
-        toolCallId: tc.id,
-      });
+        const result = await agent.tools.execute(toolCtx, tc);
+        return {
+          tc,
+          result: {
+            type: "tool_result",
+            id: tc.id,
+            ok: result.ok,
+            output: result.ok ? result.output : result.error,
+          } as StreamChunk,
+          message: {
+            role: "tool",
+            content: JSON.stringify(result.ok ? result.output : { error: result.error }),
+            toolCallId: tc.id,
+          } as LLMMessage,
+        };
+      }),
+    );
+
+    for (const r of toolResults) {
+      yield r.result;
+      messages.push(r.message);
     }
 
     // 记忆：窗口裁剪（window 策略）

@@ -42,7 +42,8 @@ export default function AgentForm({
       instructions: "你是一个乐于助人的助手。需要时使用工具并简洁总结结果。",
       model: { ...DEFAULT_MODEL },
       tools: [],
-      maxIterations: 6,
+      maxIterations: 24,
+      memory: { strategy: "compaction", contextWindowTokens: 32000, thresholdPercent: 0.75 },
     },
   );
 

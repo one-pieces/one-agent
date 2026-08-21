@@ -57,37 +57,54 @@ function imageDimensions(buf: Buffer): { width: number; height: number } | null 
 export const readTool = defineTool({
   name: "read",
   description:
-    "读取文件与图像内容。文本文件返回内容（UTF-8，大文件自动截断）；图像文件（png/jpg/gif/webp 等）返回大小与尺寸元信息。path 为绝对路径或相对会话工作目录。",
-  schema: z.object({
-    path: z.string().min(1),
-    maxChars: z.number().int().positive().max(100_000).optional(),
-  }),
-  async execute(ctx, { path, maxChars = 20_000 }) {
-    try {
-      const resolved = resolveToolPath(path, ctx.cwd);
-      const st = await stat(resolved);
-      const dot = resolved.lastIndexOf(".");
-      const ext = dot > 0 ? resolved.slice(dot).toLowerCase() : "";
-      if (IMAGE_EXT.has(ext)) {
-        const buf = await readFile(resolved);
-        const dim = imageDimensions(buf);
-        return {
-          ok: true,
-          output: {
+    "读取一个或多个文件与图像内容。文本文件返回内容（UTF-8，大文件自动截断）；图像文件（png/jpg/gif/webp 等）返回大小与尺寸元信息。支持 path（单个）或 paths（批量数组，推荐，可一次读多个文件减少轮次）。path/paths 为绝对路径或相对会话工作目录。",
+  schema: z
+    .object({
+      path: z.string().min(1).optional(),
+      paths: z.array(z.string().min(1)).max(20).optional(),
+      maxChars: z.number().int().positive().max(100_000).optional(),
+    })
+    .refine((v) => v.path || v.paths, { message: "path 或 paths 至少提供一个" }),
+  async execute(ctx, { path, paths, maxChars = 20_000 }) {
+    const targets = paths && paths.length > 0 ? paths : path ? [path] : [];
+    const results: Record<string, unknown> = {};
+    let firstError: string | undefined;
+    for (const p of targets) {
+      try {
+        const resolved = resolveToolPath(p, ctx.cwd);
+        const st = await stat(resolved);
+        const dot = resolved.lastIndexOf(".");
+        const ext = dot > 0 ? resolved.slice(dot).toLowerCase() : "";
+        if (IMAGE_EXT.has(ext)) {
+          const buf = await readFile(resolved);
+          const dim = imageDimensions(buf);
+          results[p] = {
             type: "image",
             path: resolved,
             sizeBytes: st.size,
             ...(dim ? { width: dim.width, height: dim.height } : {}),
             note: "当前为图像元信息（大小/尺寸）；图像内容识别需要视觉模型支持",
-          },
-        };
+          };
+        } else {
+          const content = await readFile(resolved, "utf-8");
+          results[p] =
+            content.length > maxChars
+              ? content.slice(0, maxChars) + `\n...[已截断，总长度 ${content.length}]`
+              : content;
+        }
+      } catch (err) {
+        results[p] = `读取失败: ${err instanceof Error ? err.message : String(err)}`;
+        firstError ??= err instanceof Error ? err.message : String(err);
       }
-      const content = await readFile(resolved, "utf-8");
-      const truncated =
-        content.length > maxChars ? content.slice(0, maxChars) + `\n...[已截断，总长度 ${content.length}]` : content;
-      return { ok: true, output: truncated };
-    } catch (err) {
-      return { ok: false, output: null, error: `读取失败: ${err instanceof Error ? err.message : String(err)}` };
     }
+    // 单个文件时保持旧返回格式（纯文本/对象），批量时返回 { files: { path: content } }
+    if (targets.length === 1) {
+      const single = results[targets[0]!];
+      if (typeof single === "string" && single.startsWith("读取失败:")) {
+        return { ok: false, output: null, error: single };
+      }
+      return { ok: true, output: single };
+    }
+    return { ok: true, output: { files: results } };
   },
 });
