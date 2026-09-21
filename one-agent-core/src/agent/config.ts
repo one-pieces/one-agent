@@ -27,6 +27,13 @@ export const agentConfigSchema = z.object({
     .optional(),
   maxIterations: z.number().int().min(1).optional(),
   temperature: z.number().optional(),
+  planning: z
+    .object({
+      mode: z.enum(["off", "prompt"]),
+      guidance: z.string().optional(),
+    })
+    .optional(),
+  emptyResponseRetries: z.number().int().min(0).max(5).optional(),
 });
 
 /** 校验并返回规范化配置；非法配置直接抛错（编程/配置错误） */

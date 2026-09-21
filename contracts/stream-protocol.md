@@ -33,6 +33,7 @@ data: {"type":"done","sessionId":"s_1","messageId":"m_9"}
 - 错误：`{"type":"error","message":"..."}`，之后流结束
 - 中断：客户端 `AbortController` → 服务端 `AbortSignal` 传导，静默结束（不发 error）
 - 顺序约定：`text` / `tool_call` 实时；`tool_call` 在 provider 流结束后聚合发出；`usage` 在 `done` 前；`done` 永远最后
+- 消息边界：**一次 LLM 调用 = 一条 `assistant` 消息**（`content` 为该次调用的文本，`toolCalls` 为该次调用发起的工具），其后紧跟对应的 `tool` 结果消息。AgentLoop 与落库结构、前端渲染都遵循此规则：应用层在「上一轮工具结果全部返回后到来的 `text`/`tool_call`」处另起一条消息，从而保证文本与工具卡片按真实发生顺序交替（回放与实时流式一致）
 
 ## token 统计持久化
 

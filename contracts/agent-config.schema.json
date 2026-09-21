@@ -36,7 +36,25 @@
       }
     },
     "maxIterations": { "type": "integer", "minimum": 1 },
-    "temperature": { "type": "number" }
+    "temperature": { "type": "number" },
+    "planning": {
+      "description": "规划规程：把“先规划后动手”的倾向注入 system 前缀（仅会话首轮注入，保持 prompt cache 稳定）",
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["off", "prompt"] },
+        "guidance": {
+          "type": "string",
+          "description": "自定义规程文本；缺省使用内核内置 PLANNING_GUIDANCE"
+        }
+      }
+    },
+    "emptyResponseRetries": {
+      "description": "空响应重试次数（默认 2）：模型既无文本也无工具调用时追加催促重试；仍为空则报错，不把空回答当最终答案",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    }
   },
   "$defs": {
     "providerConfig": {

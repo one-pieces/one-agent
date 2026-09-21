@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compactMessages, estimateTokens } from "../../src/memory/index.ts";
+import { compactMessages, dropSyntheticMessages, estimateTokens } from "../../src/memory/index.ts";
 import type { ProviderConfig } from "../../src/index.ts";
 import { ScriptedProvider } from "../helpers/scripted-provider.ts";
 import type { LLMMessage } from "../../src/index.ts";
@@ -71,5 +71,56 @@ describe("compactMessages", () => {
     const ok = await compactMessages({ provider, modelConfig, messages, keepRecent: 2 });
     expect(ok).toBe(false);
     expect(JSON.stringify(messages)).toBe(snapshot);
+  });
+});
+
+describe("合成消息（todo 快照）与压缩的交互（P1-c）", () => {
+  const withSynthetic: LLMMessage[] = [
+    { role: "system", content: "指令" },
+    { role: "user", content: "问题1" },
+    { role: "assistant", content: "回答1" },
+    { role: "user", content: "[你的任务清单在上下文压缩后被保留]\n[>] 步骤一", synthetic: "contextSnapshot" },
+    { role: "user", content: "问题2" },
+    { role: "assistant", content: "回答2" },
+    { role: "user", content: "问题3" },
+    { role: "assistant", content: "回答3" },
+    { role: "user", content: "问题4" },
+    { role: "assistant", content: "回答4" },
+  ];
+
+  it("旧快照不参与摘要，且压缩后被丢弃（由 AgentLoop 重新注入最新清单）", async () => {
+    const seen: LLMMessage[][] = [];
+    const provider = new ScriptedProvider([() => [{ type: "text", delta: "摘要内容" }, { type: "done" }]], (opts) =>
+      seen.push(opts.messages.map((m) => ({ ...m }))),
+    );
+    const messages = withSynthetic.map((m) => ({ ...m }));
+    const ok = await compactMessages({ provider, modelConfig, messages, keepRecent: 2 });
+
+    expect(ok).toBe(true);
+    // 摘要输入里没有合成消息
+    expect(seen[0]!.some((m) => m.synthetic)).toBe(false);
+    // 压缩后数组里也没有残留合成消息
+    expect(messages.some((m) => m.synthetic)).toBe(false);
+    expect(messages.at(-1)!.content).toBe("回答4");
+  });
+
+  it("摘要失败 → 消息数组完全不变（含合成消息）", async () => {
+    const provider = new ScriptedProvider([() => [{ type: "error", message: "HTTP 500" }]]);
+    const messages = withSynthetic.map((m) => ({ ...m }));
+    const snapshot = JSON.stringify(messages);
+    const ok = await compactMessages({ provider, modelConfig, messages, keepRecent: 2 });
+    expect(ok).toBe(false);
+    expect(JSON.stringify(messages)).toBe(snapshot);
+  });
+
+  it("dropSyntheticMessages 从指定下标起移除合成消息并返回条数", () => {
+    const messages: LLMMessage[] = [
+      { role: "system", content: "摘要" },
+      { role: "user", content: "a" },
+      { role: "user", content: "snap", synthetic: "contextSnapshot" },
+      { role: "assistant", content: "b" },
+    ];
+    expect(dropSyntheticMessages(messages, 1)).toBe(1);
+    expect(messages.map((m) => m.content)).toEqual(["摘要", "a", "b"]);
   });
 });

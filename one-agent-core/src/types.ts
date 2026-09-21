@@ -16,7 +16,15 @@ export interface LLMMessage {
   toolCallId?: string;
   /** 该条消息生成时消耗的 token 用量（仅 assistant 消息附带，用于持久化统计；不会发给 provider） */
   usage?: TokenUsage;
+  /**
+   * 合成消息标记（内核生成、非用户输入）。当前只有 "contextSnapshot"：
+   * 上下文压缩后重新注入的任务清单。用途：压缩时丢弃旧的、前端隐藏、不参与历史摘要。
+   */
+  synthetic?: SyntheticMessageKind;
 }
+
+/** 合成消息类型（内核生成，不代表真实对话内容）：压缩后的上下文快照 / 空响应重试催促 */
+export type SyntheticMessageKind = "contextSnapshot" | "emptyRetryNudge";
 
 /** token 用量（usage chunk / 消息级 / 会话级累计共用） */
 export interface TokenUsage {
@@ -60,7 +68,12 @@ export type StreamChunk =
 export interface ToolContext {
   cwd?: string;
   signal?: AbortSignal;
-  /** 后续扩展：agentId / sessionId / 审批句柄 */
+  /**
+   * 当前会话 id —— 有状态工具（todo 等）的唯一状态归属。
+   * Agent 实例按 agentId 缓存并服务多个会话，因此会话态必须由 ctx 传入，不能挂在工具/Agent 上。
+   */
+  sessionId?: string;
+  /** 后续扩展：agentId / 审批句柄 */
 }
 
 /** 工具执行结果 */
@@ -119,4 +132,18 @@ export interface AgentConfig {
   maxIterations?: number;
   /** 顶层温度，覆盖 model.temperature（model 未显式设置时生效） */
   temperature?: number;
+  /**
+   * 规划规程（P1-a）：把"先规划后动手"的倾向作为配置数据注入 system 前缀（仅首轮注入，缓存安全）。
+   * mode: "off"（默认）| "prompt"；guidance 缺省用内核内置规程（core/src/agent/planning.ts）。
+   */
+  planning?: {
+    mode: "off" | "prompt";
+    guidance?: string;
+  };
+  /**
+   * 空响应重试次数（默认 2）：模型既没输出文本、也没发起工具调用时，
+   * 追加一条催促消息重试；仍然为空则结束本轮并给出明确的 error chunk，
+   * 绝不把空回答当成最终答案静默落库（见 AgentLoop 的空响应守卫）。
+   */
+  emptyResponseRetries?: number;
 }

@@ -16,7 +16,11 @@ interface ToolCallAcc {
 function toOpenAIMessage(m: LLMMessage): Record<string, unknown> {
   const base: Record<string, unknown> = { role: m.role };
   if (m.role === "assistant") {
-    base.content = m.content || null;
+    // 注意：历史里可能存在 content 为空串的 assistant 消息（例如上轮模型只返回工具调用、或空响应）。
+    // 这类消息**不能**发 `content: null` —— Ollama 的 OpenAI 兼容端点会直接 400
+    // `invalid message content type: <nil>`，且该错误会因那条消息一直留在历史里而**每轮复现**。
+    // 空串对 OpenAI / DeepSeek / Ollama 都是合法值，故统一用 ""。
+    base.content = m.content ?? "";
     if (m.toolCalls && m.toolCalls.length > 0) {
       base.tool_calls = m.toolCalls.map((tc) => ({
         id: tc.id,

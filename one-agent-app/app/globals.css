@@ -14,6 +14,18 @@
   --warning: #d29922;
   --code-bg: #0b0d13;
   --code-inline-bg: rgba(255, 255, 255, 0.07);
+  /* 代码高亮配色：geist（Vercel 设计系统），与 streamdown 文档站一致（暗色为默认主题） */
+  --shiki-color-text: #ededed;
+  --shiki-color-background: transparent;
+  --shiki-token-comment: #a0a0a0;
+  --shiki-token-constant: #47a8ff;
+  --shiki-token-function: #c472fb;
+  --shiki-token-keyword: #ff4d8d;
+  --shiki-token-link: #00ca50;
+  --shiki-token-parameter: #ff9300;
+  --shiki-token-punctuation: #ededed;
+  --shiki-token-string: #00ca50;
+  --shiki-token-string-expression: #00ca50;
 }
 
 [data-theme="light"] {
@@ -33,6 +45,18 @@
   /* 亮色主题代码块：深色背景换浅色，避免继承的深色文字在深底上看不清 */
   --code-bg: #eef0f4;
   --code-inline-bg: rgba(0, 0, 0, 0.06);
+  /* 代码高亮配色：geist 亮色版（同 streamdown 文档站亮色主题） */
+  --shiki-color-text: #171717;
+  --shiki-color-background: transparent;
+  --shiki-token-comment: #4d4d4d;
+  --shiki-token-constant: #005ff2;
+  --shiki-token-function: #7d00cc;
+  --shiki-token-keyword: #c41562;
+  --shiki-token-link: #107d32;
+  --shiki-token-parameter: #aa4d00;
+  --shiki-token-punctuation: #171717;
+  --shiki-token-string: #107d32;
+  --shiki-token-string-expression: #107d32;
 }
 
 * {
@@ -484,14 +508,108 @@ code {
   margin: 6px 0;
 }
 
-.bubble pre {
-  background: var(--code-bg);
+/* ═══ 代码块（Streamdown + @streamdown/code；消息气泡与工具卡片共用）═══
+   几何与交互对齐 streamdown 文档站（https://streamdown.ai/docs/code-blocks）：
+   6px 圆角 / 1px 细边 / 上下 12px、每行左右 16px 内边距 / 13px-20px 等宽 / 无语言栏 /
+   右上角 36×36 复制按钮（悬停淡入）。文档站用 tailwind 类名 + Geist Mono，
+   本项目没有 tailwind（那些类名不生效）也没有 Geist，故用等价 CSS + 本机等宽字体栈。 */
+[data-streamdown="code-block"] {
+  position: relative;
+  margin: 10px 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  overflow: hidden;
+}
+
+/* 文档站代码块没有语言栏（语言信息在代码里/上下文里体现）→ 整条隐藏 */
+[data-streamdown="code-block-header"] {
+  display: none;
+}
+
+/* 复制按钮层：钉在右上角，悬停/聚焦时淡入（streamdown 的 sticky + 负边距类名在本项目不生效） */
+[data-streamdown="code-block"] > div:has([data-streamdown="code-block-actions"]) {
+  position: absolute;
+  /* 容器有 1px 边框，absolute 相对 padding box → 4px 正好落成文档站的 5px 视觉间距 */
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-streamdown="code-block"]:hover > div:has([data-streamdown="code-block-actions"]),
+[data-streamdown="code-block"]:focus-within > div:has([data-streamdown="code-block-actions"]) {
+  opacity: 1;
+}
+
+[data-streamdown="code-block-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+[data-streamdown="code-block"] button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+
+[data-streamdown="code-block"] button:hover {
+  color: var(--foreground);
+}
+
+[data-streamdown="code-block"] button svg {
+  width: 14px;
+  height: 14px; /* 与文档站一致（图标 14px） */
+}
+
+/* 代码区：上下内边距由容器给，左右内边距落在每一行上（文档站做法） */
+[data-streamdown="code-block-body"] {
+  padding: 12px 0;
   overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.5;
+}
+
+[data-streamdown="code-block"] pre {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  overflow-x: visible;
+  color: var(--shiki-color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: pre;
+}
+
+[data-streamdown="code-block"] code {
+  display: grid;
+  min-width: max-content;
+}
+
+[data-streamdown="code-block"] code > span {
+  display: block;
+  min-height: 20px;
+  padding: 0 16px;
+}
+
+/* shiki 的 token 颜色以内联 CSS 变量下发（--sdm-c 为亮色主题槽、--shiki-dark 为暗色槽）。
+   本项目用的是「变量色 geist 主题」（lib/code-theme.ts），两个槽都指向 --shiki-token-*，
+   明暗差异由 :root / [data-theme="light"] 里的调色板决定，所以这里直接消费即可。 */
+[data-streamdown="code-block"] span[style*="--sdm-c"] {
+  color: var(--sdm-c);
 }
 
 .bubble code {
@@ -500,9 +618,11 @@ code {
   padding: 1px 5px;
 }
 
-.bubble pre code {
+.bubble pre code,
+[data-streamdown="code-block"] code {
   background: none;
   padding: 0;
+  font-size: inherit;
 }
 
 .bubble table {
@@ -589,17 +709,6 @@ code {
   color: var(--destructive);
 }
 
-.tool-card pre {
-  background: var(--code-bg);
-  border-radius: 6px;
-  padding: 6px 8px;
-  overflow-x: auto;
-  font-size: 11px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
-}
-
 .tool-card .label {
   color: var(--muted-foreground);
   font-size: 11px;
@@ -612,8 +721,70 @@ code {
   padding: 0 10px 8px;
 }
 
-.tool-output-error {
+.tool-denied-note {
+  margin: 0;
   color: var(--destructive);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* ═══ 方案面板（会话工作区 .oneagent/plans/ 里最新的一份方案）═══ */
+.plan-panel {
+  margin: 8px 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.plan-panel > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  list-style: none;
+}
+
+.plan-panel > summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-panel > summary:hover {
+  color: var(--foreground);
+}
+
+.plan-panel-title {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.plan-panel-path {
+  font-size: 11px;
+  background: var(--code-inline-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.plan-panel-time {
+  margin-left: auto;
+  font-size: 11px;
+}
+
+/* 方案正文：限高可滚动（长方案不挤占对话区） */
+.plan-panel-body {
+  max-height: 45vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  padding: 4px 12px 12px;
+}
+
+.plan-panel-body .bubble {
+  background: none;
+  padding: 0;
 }
 
 /* 滚动到底按钮 */
@@ -1932,6 +2103,27 @@ h3 {
 
 .ui-switch[data-state="checked"] .ui-switch-thumb {
   transform: translateX(16px);
+}
+
+/* ═══ 工具调用里的代码块（入参/结果）：复用上面的 Streamdown 代码块，仅做卡片内的紧凑化 ═══ */
+.tool-code [data-streamdown="code-block"] {
+  margin: 0;
+}
+
+/* 长结果（最多 1800 字符）不占满整屏：限高来自 streamdown 的 codeBlockMaxHeight（内联 max-height），
+   这里补上纵向滚动 —— streamdown 自带的 overflow-y-auto 是 tailwind 类名，本项目不生效 */
+.tool-code [data-streamdown="code-block-body"] {
+  overflow-y: auto;
+}
+
+.tool-code-error [data-streamdown="code-block"] {
+  border-color: var(--destructive);
+}
+
+.tool-code-note {
+  margin-top: 3px;
+  color: var(--muted-foreground);
+  font-size: 10px;
 }
 
 /* eve 风格编辑弹窗：设置行（标题+说明 | 右侧控件） */

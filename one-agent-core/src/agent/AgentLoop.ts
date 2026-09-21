@@ -1,6 +1,9 @@
 import type { Agent } from "./Agent.ts";
-import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolContext, ToolSpec } from "../types.ts";
+import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolContext, ToolResult, ToolSpec } from "../types.ts";
 import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.ts";
+import { buildSystemPrompt } from "./planning.ts";
+import { findLatestPlan } from "../plan/planFiles.ts";
+import { scheduleToolBatch } from "./toolBatchScheduler.ts";
 
 export interface RunOptions {
   /** 每轮会话/请求级模型覆盖 → 动态切换模型的核心入口 */
@@ -40,9 +43,10 @@ export async function* agentLoop(
   const config = agent.getConfig();
   const maxIter = config.maxIterations ?? 10;
 
-  // 注入 system 指令（messages 里还没有 system 时），保证 persona/指令始终生效
-  if (config.instructions && !messages.some((m) => m.role === "system")) {
-    messages.unshift({ role: "system", content: config.instructions });
+  // 注入 system 指令（messages 里还没有 system 时），保证 persona/指令/规划规程始终生效
+  const systemContent = buildSystemPrompt(config);
+  if (systemContent && !messages.some((m) => m.role === "system")) {
+    messages.unshift({ role: "system", content: systemContent });
   }
 
   const modelConfig: ProviderConfig = {
@@ -53,6 +57,8 @@ export async function* agentLoop(
     ...opts.modelOverride,
   };
 
+  // 空响应守卫计数（连续空响应次数；一旦有产出即归零）
+  let emptyRetries = 0;
   // 整轮累计（供最终 usage chunk）；turnUsage 为单次 LLM 调用用量（随 assistant 消息持久化）
   const usageTotal = { input: 0, output: 0, cached: 0, cacheCreation: 0 };
   let turnUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, cacheCreationTokens: 0 };
@@ -63,8 +69,10 @@ export async function* agentLoop(
       const windowTokens = config.memory.contextWindowTokens ?? 32_000;
       const threshold = Math.max(100, (config.memory.thresholdPercent ?? 0.75) * windowTokens);
       if (estimateMessagesTokens(messages) > threshold) {
-        await compactMessages({ provider: agent.provider, modelConfig, messages });
-        // 摘要失败则跳过本次压缩，继续正常调用
+        const compacted = await compactMessages({ provider: agent.provider, modelConfig, messages });
+        // P1-c：压缩成功后把「任务清单（未完成项）+ 方案文档路径」重新注入 —— 否则模型会忘记进度、重做已完成的工作。
+        // 以 user 角色（不改 system，保住 prompt cache 前缀）+ 合成标记（压缩时丢弃、前端隐藏）
+        if (compacted) await injectContextSnapshot(agent, messages, opts);
       }
     }
 
@@ -104,6 +112,38 @@ export async function* agentLoop(
 
     // assistant 消息（含工具调用）入历史 —— 无论是否带工具调用，保证多轮连续性；
     // 附带本轮 LLM 调用用量 → 随会话持久化（前端刷新后恢复统计）
+    const isEmptyResponse = text.trim() === "" && toolCalls.length === 0;
+    if (isEmptyResponse) {
+      // 空响应守卫：模型既没输出文本、也没发起工具调用（本地小模型常见）。
+      // 绝不能把空回答当成"最终答案"静默落库 —— 那会让整个会话看起来"没反应"。
+      // 处理：追加一条催促消息重试（合成标记，压缩时丢弃、前端隐藏），超过上限则明确报错。
+      const maxRetries = config.emptyResponseRetries ?? 2;
+      if (emptyRetries < maxRetries) {
+        emptyRetries++;
+        messages.push({
+          role: "user",
+          content:
+            "[系统] 你上一条回复是空的（既没有文字也没有工具调用）。请直接给出回答；" +
+            "如果需要工具，请发起工具调用，不要只输出空白或仅思考。",
+          synthetic: "emptyRetryNudge",
+        });
+        continue;
+      }
+      yield {
+        type: "error",
+        message: `模型连续 ${maxRetries + 1} 次返回空响应（既无文本也无工具调用），已停止本轮。可重试或更换模型。`,
+      };
+      return;
+    }
+    // 有产出了 → 清掉本轮的重试催促（它是脚手架，不该留在历史里：下一轮再看到
+    // "[系统] 你上一条回复是空的" 会指向一个已经不空的轮次）
+    if (emptyRetries > 0) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]!.synthetic === "emptyRetryNudge") messages.splice(i, 1);
+      }
+    }
+    emptyRetries = 0;
+
     messages.push({
       role: "assistant",
       content: text,
@@ -134,50 +174,33 @@ export async function* agentLoop(
       });
     }
 
-    // 执行工具（同一轮内的多个工具调用并行执行，减少总耗时；结果按原顺序回填保持契约稳定）
-    const toolCtx: ToolContext = { cwd: opts.cwd };
-    // 先发出 tool_call 事件（保持顺序稳定），再并行执行
+    // 执行工具：调度器按路径重叠把批次切成有序段（段内并行、段间串行），结果按原始调用顺序回填。
+    // 目的：同轮「读同一文件 + 写同一文件」「两次写同一文件」不再竞态；纯读批次仍保持并行。
+    // 有状态工具（todo 等）通过 ctx.sessionId 拿到会话归属；Agent 实例是跨会话共享的
+    const toolCtx: ToolContext = { cwd: opts.cwd, sessionId: opts.sessionId };
+    // 先发出 tool_call 事件（保持顺序稳定），再执行
     for (const tc of toolCalls) {
       yield { type: "tool_call", id: tc.id, name: tc.name, input: tc.input };
       if (opts.onToolCall) await opts.onToolCall(tc);
     }
-    const toolResults = await Promise.all(
-      toolCalls.map(async (tc) => {
-        const tool = agent.tools.get(tc.name);
-        const isDangerous = tool?.meta?.dangerous ?? false;
-        if (isDangerous && opts.onApproval) {
-          const approved = await opts.onApproval(tc, tool!);
-          if (!approved) {
-            const reason = "已拒绝：危险操作未获批准";
-            return {
-              tc,
-              result: { type: "tool_result", id: tc.id, ok: false, output: reason } as StreamChunk,
-              message: { role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id } as LLMMessage,
-            };
-          }
-        }
 
-        const result = await agent.tools.execute(toolCtx, tc);
-        return {
-          tc,
-          result: {
-            type: "tool_result",
-            id: tc.id,
-            ok: result.ok,
-            output: result.ok ? result.output : result.error,
-          } as StreamChunk,
-          message: {
-            role: "tool",
-            content: JSON.stringify(result.ok ? result.output : { error: result.error }),
-            toolCallId: tc.id,
-          } as LLMMessage,
-        };
-      }),
-    );
+    const outcomes = new Array<ToolOutcome | undefined>(toolCalls.length);
+    const indexOf = new Map<ToolCall, number>(toolCalls.map((tc, i) => [tc, i]));
+    const runToolCall = async (tc: ToolCall): Promise<void> => {
+      const index = indexOf.get(tc);
+      if (index === undefined) return;
+      outcomes[index] = await runSingleToolCall(agent, toolCtx, tc, opts);
+    };
 
-    for (const r of toolResults) {
-      yield r.result;
-      messages.push(r.message);
+    for (const segment of scheduleToolBatch(toolCalls, { cwd: opts.cwd })) {
+      if (segment.kind === "parallel") await Promise.all(segment.calls.map(runToolCall));
+      else for (const tc of segment.calls) await runToolCall(tc);
+    }
+
+    for (const outcome of outcomes) {
+      if (!outcome) continue;
+      yield outcome.result;
+      messages.push(outcome.message);
     }
 
     // 记忆：窗口裁剪（window 策略）
@@ -197,4 +220,83 @@ function resolveEnabledTools(
     .filter((t) => overrideMap.get(t.name) ?? t.enabled)
     .map((t) => agent.tools.get(t.name))
     .filter((t): t is ToolSpec => t !== undefined);
+}
+
+/** 单个工具调用的执行结果（按原始调用顺序回填） */
+interface ToolOutcome {
+  result: StreamChunk;
+  message: LLMMessage;
+}
+
+/**
+ * 压缩后重新注入上下文快照（P1-c）：把「未完成的任务清单」+「方案文档路径」作为合成 user 消息追加到尾部。
+ * - 幂等：先移除旧快照再追加，避免多次压缩堆积多份；
+ * - 二者都无（没有活动清单、也没有方案）→ 不注入；
+ * - 全部完成/未启用 todo 时旧快照已被 compactMessages 丢弃，不会再回到上下文。
+ */
+async function injectContextSnapshot(agent: Agent, messages: LLMMessage[], opts: RunOptions): Promise<void> {
+  const parts: string[] = [];
+
+  if (opts.sessionId) {
+    const todos = await agent.todos.formatForInjection(opts.sessionId);
+    if (todos) parts.push(todos);
+  }
+  if (opts.cwd) {
+    const plan = await findLatestPlan(opts.cwd);
+    if (plan) parts.push(`[方案文档] ${plan.path}\n（这是更早写的方案；需要回顾时用 read 读取，不要再从零重写一份。）`);
+  }
+  if (parts.length === 0) return;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]!.synthetic) messages.splice(i, 1);
+  }
+  messages.push({ role: "user", content: parts.join("\n\n"), synthetic: "contextSnapshot" });
+}
+
+/**
+ * 执行单个工具调用：危险工具审批 → 执行 → 组装 tool_result / tool 消息。
+ * 工具未注册、审批拒绝、执行抛错都转成 ok:false 的结果（不抛出），
+ * 否则一个坏调用会让整轮 Promise.all 失败、进而中断对话。
+ */
+async function runSingleToolCall(
+  agent: Agent,
+  toolCtx: ToolContext,
+  tc: ToolCall,
+  opts: RunOptions,
+): Promise<ToolOutcome> {
+  const tool = agent.tools.get(tc.name);
+  if (!tool) return failureOutcome(tc, `工具未注册：${tc.name}`);
+
+  if (tool.meta?.dangerous && opts.onApproval) {
+    const approved = await opts.onApproval(tc, tool);
+    if (!approved) return failureOutcome(tc, "已拒绝：危险操作未获批准");
+  }
+
+  let result: ToolResult;
+  try {
+    result = await agent.tools.execute(toolCtx, tc);
+  } catch (err) {
+    return failureOutcome(tc, `工具 ${tc.name} 执行异常：${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return {
+    result: {
+      type: "tool_result",
+      id: tc.id,
+      ok: result.ok,
+      output: result.ok ? result.output : result.error,
+    },
+    message: {
+      role: "tool",
+      content: JSON.stringify(result.ok ? result.output : { error: result.error }),
+      toolCallId: tc.id,
+    },
+  };
+}
+
+function failureOutcome(tc: ToolCall, reason: string): ToolOutcome {
+  return {
+    result: { type: "tool_result", id: tc.id, ok: false, output: reason },
+    message: { role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id },
+  };
 }

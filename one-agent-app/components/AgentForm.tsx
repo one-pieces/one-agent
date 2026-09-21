@@ -70,6 +70,20 @@ export default function AgentForm({
     setForm((f) => ({ ...f, [key]: value }));
   const setModel = <K extends keyof AgentConfig["model"]>(key: K, value: AgentConfig["model"][K]) =>
     setForm((f) => ({ ...f, model: { ...f.model, [key]: value } }));
+  /**
+   * 规划规程开关：开启时同时启用 todo 计划工件（与 kernel 的自动启用逻辑一致，否则规程会指导模型用一个用不了的工具）。
+   * 判据是「已启用」而不是「条目存在」—— 条目存在但 enabled:false 时同样要改成启用。
+   */
+  const togglePlanning = (enabled: boolean) =>
+    setForm((f) => {
+      const todoEnabled = f.tools.some((x) => x.name === "todo" && x.enabled);
+      const tools =
+        enabled && !todoEnabled
+          ? [...f.tools.filter((x) => x.name !== "todo"), { name: "todo", enabled: true }]
+          : f.tools;
+      return { ...f, planning: enabled ? { mode: "prompt" } : undefined, tools };
+    });
+
   const toggleTool = (name: string, enabled: boolean) =>
     setForm((f) => {
       const exists = f.tools.some((t) => t.name === name);
@@ -216,6 +230,22 @@ export default function AgentForm({
           })}
         </div>
       )}
+
+      <h3>规划（自规划规程）</h3>
+      <div className="tool-list">
+        <div className="tool-item tool-item-switch">
+          <div className="tool-item-info">
+            <div className="tool-item-name">
+              <code>planning</code>
+            </div>
+            <small>
+              开启后把「先规划后动手」的规程注入系统提示（仅会话首轮，缓存安全）：多步任务先写 todo 计划再执行、
+              复杂任务可写方案文档（plan 工具 → 工作区 .oneagent/plans/）。会自动启用 <code>todo</code>。
+            </small>
+          </div>
+          <Switch checked={form.planning?.mode === "prompt"} onCheckedChange={togglePlanning} />
+        </div>
+      </div>
 
       <h3>知识库（关联后对话可检索）</h3>
       {knowledgeBases.length === 0 ? (

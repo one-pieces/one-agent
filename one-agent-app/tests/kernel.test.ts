@@ -197,3 +197,106 @@ describe("InProcessKernel 会话覆盖（M4）", () => {
     expect(kernel.sessionWorkspacePath("session-abc")).toBe(join(kernel.workspaceRoot, "session-abc"));
   });
 });
+
+/** 发一个 todo 工具调用的 Provider（验证计划工件端到端落库） */
+class TodoCallingProvider implements LanguageProvider {
+  readonly kind = "openai-compatible" as const;
+  calls: ChatOptions[] = [];
+  async *chat(opts: ChatOptions): AsyncIterable<StreamChunk> {
+    this.calls.push(opts);
+    if (this.calls.length === 1) {
+      yield {
+        type: "tool_call",
+        id: "t1",
+        name: "todo",
+        input: { todos: [{ content: "第一步", status: "in_progress" }, { content: "第二步" }] },
+      };
+    }
+    yield { type: "text", delta: "ok" };
+    yield { type: "usage", inputTokens: 1, outputTokens: 1 };
+    yield { type: "done" };
+  }
+}
+
+describe("规划规程与 todo 计划工件（P1）", () => {
+  function makePlanningKernel(provider: LanguageProvider) {
+    const dir = mkdtempSync(join(tmpdir(), "one-agent-planning-"));
+    tempDirs.push(dir);
+    const kernel = new InProcessKernel(join(dir, "sessions.db"), { providerFactory: () => provider });
+    return { kernel, provider };
+  }
+
+  it("planning.mode=prompt → system 注入规程 + 自动启用 todo 计划工件", async () => {
+    const provider = new RecordingProvider();
+    const { kernel } = makePlanningKernel(provider);
+    const session = kernel.createSession("test-agent");
+
+    await drain(
+      kernel.runChat({
+        agentConfig: { ...agentConfig, planning: { mode: "prompt" } },
+        sessionId: session.id,
+        message: "帮我规划一个多步任务",
+      }),
+    );
+
+    const call = provider.calls[0]!;
+    const system = call.messages.filter((m) => m.role === "system");
+    expect(system).toHaveLength(1);
+    expect(system[0]!.content).toContain("规划规程");
+    // kernel 自动把 todo 加进 config.tools（否则规程会指导模型调用一个不存在的工具）
+    expect(call.tools?.map((t) => t.name)).toContain("todo");
+  });
+
+  it("todo 条目存在但被禁用 → planning=prompt 仍会启用它（判据是「已启用」）", async () => {
+    const provider = new RecordingProvider();
+    const { kernel } = makePlanningKernel(provider);
+    const session = kernel.createSession("test-agent");
+
+    await drain(
+      kernel.runChat({
+        agentConfig: {
+          ...agentConfig,
+          tools: [{ name: "todo", enabled: false }],
+          planning: { mode: "prompt" },
+        },
+        sessionId: session.id,
+        message: "hi",
+      }),
+    );
+
+    expect(provider.calls[0]!.tools?.map((t) => t.name)).toContain("todo");
+  });
+
+  it("planning.mode=off（缺省）→ 不加规程，也不自动启用 todo", async () => {
+    const provider = new RecordingProvider();
+    const { kernel } = makePlanningKernel(provider);
+    const session = kernel.createSession("test-agent");
+
+    await drain(kernel.runChat({ agentConfig, sessionId: session.id, message: "hi" }));
+
+    const call = provider.calls[0]!;
+    expect(call.messages.find((m) => m.role === "system")?.content).toBe("测试指令");
+    expect(call.tools?.map((t) => t.name)).not.toContain("todo");
+  });
+
+  it("todo 写入 → 落进 session.meta.todos（工具与 kernel 共用同一 TodoStore）", async () => {
+    const provider = new TodoCallingProvider();
+    const { kernel } = makePlanningKernel(provider);
+    const session = kernel.createSession("test-agent");
+
+    await drain(
+      kernel.runChat({
+        agentConfig: { ...agentConfig, planning: { mode: "prompt" } },
+        sessionId: session.id,
+        message: "写个计划",
+      }),
+    );
+
+    const stored = await kernel.getSession(session.id);
+    const todos = (stored?.meta as { todos?: { items: Array<{ content: string; status: string }> } }).todos;
+    expect(todos?.items.map((i) => i.content)).toEqual(["第一步", "第二步"]);
+    expect(todos?.items[0]!.status).toBe("in_progress");
+    // 压缩后注入用的渲染也来自同一份状态
+    expect(await kernel.todos.formatForInjection(session.id)).toContain("第一步");
+  });
+});

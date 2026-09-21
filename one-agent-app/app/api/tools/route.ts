@@ -16,6 +16,11 @@ export async function GET() {
       description: "在关联的知识库中检索资料（需先在 Agent 配置里勾选知识库）",
       dangerous: false,
     },
+    {
+      name: "todo",
+      description: "维护任务清单（计划工件）：多步任务先写计划再执行，清单随会话持久化",
+      dangerous: false,
+    },
   ];
   return Response.json(tools);
 }

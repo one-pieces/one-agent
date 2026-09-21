@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircleIcon,
   ArrowDownIcon,
@@ -14,39 +14,99 @@ import { Streamdown } from "streamdown";
 import { cjk } from "@streamdown/cjk";
 import { consumeSSE } from "@/lib/sse-client";
 import SessionSettings from "@/components/SessionSettings";
+import { codePlugin } from "@/lib/code-theme";
+import {
+  applyChunk,
+  toUiMessages,
+  uid,
+  type ToolStatus,
+  type UiMessage,
+  type UiToolCall,
+} from "@/lib/chat-messages";
 import type { AgentConfig, Message as PersistedMessage } from "@one-agent/core";
 
-const markdownPlugins = { cjk };
+/** 代码块插件：cjk（中文断行）+ code（shiki 高亮，配色对齐 streamdown 文档站，见 lib/code-theme.ts） */
+const markdownPlugins = { cjk, code: codePlugin };
+/** 代码块控制项/文案：只留复制（去掉下载），按钮文案随本项目中文界面 */
+const codeBlockControls = { code: { copy: true, download: false } };
+const codeBlockTranslations = { copyCode: "复制", copied: "已复制" };
 
-export type ToolStatus = "running" | "done" | "error" | "denied";
+export type { ToolStatus, UiMessage, UiToolCall };
 
-export interface UiToolCall {
-  id: string;
-  name: string;
-  input: unknown;
-  status: ToolStatus;
-  output?: unknown;
-}
-
-export interface UiMessage {
-  id: string;
-  role: "user" | "assistant";
+/** 方案文档（会话工作区 .oneagent/plans/ 里最新的一份） */
+interface PlanInfo {
+  path: string;
   content: string;
-  toolCalls: UiToolCall[];
-  streaming?: boolean;
+  updatedAt: string;
 }
 
-function uid(): string {
-  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
+/** 入参/结果最大展示长度（超出部分截断，避免长文件读取撑爆卡片） */
+const TOOL_TEXT_LIMIT = 1800;
 
-function formatOutput(o: unknown): string {
-  if (typeof o === "string") return o.slice(0, 600);
+/**
+ * 工具调用代码块的最大高度（px）—— 用 streamdown 内置的 codeBlockMaxHeight（2.6.0+，
+ * 默认 400px），超出部分在块内纵向滚动；消息气泡里传 0 表示不限高。
+ */
+const TOOL_CODE_MAX_HEIGHT = 420;
+
+/** 任意值 → 展示文本（对象按 2 空格缩进 JSON 化，便于阅读） */
+function stringifyToolValue(o: unknown): string {
+  if (typeof o === "string") return o;
   try {
-    return JSON.stringify(o, null, 1).slice(0, 600);
+    const s = JSON.stringify(o, null, 2);
+    return s === undefined ? String(o) : s;
   } catch {
-    return String(o).slice(0, 600);
+    return String(o);
   }
+}
+
+function toToolText(o: unknown): { text: string; truncated: boolean; language: string } {
+  const raw = stringifyToolValue(o);
+  const truncated = raw.length > TOOL_TEXT_LIMIT;
+  return {
+    text: truncated ? raw.slice(0, TOOL_TEXT_LIMIT) : raw,
+    truncated,
+    language: sniffLanguage(raw, truncated),
+  };
+}
+
+/** 内容像 JSON（对象/数组字面量）→ 标为 json；截断后无法整体解析时按首字符判断 */
+function sniffLanguage(raw: string, truncated: boolean): string {
+  const t = raw.trim();
+  if (!/^[[{]/.test(t)) return "text";
+  if (truncated) return "json";
+  try {
+    JSON.parse(t);
+    return "json";
+  } catch {
+    return "text";
+  }
+}
+
+/** 内容包成 Markdown 围栏代码块；围栏长度取「内容里最长反引号串 + 1」，避免内容自带 ``` 提前闭合 */
+function fenced(text: string, language: string): string {
+  const runs = text.match(/`+/g) ?? [];
+  const fence = "`".repeat(Math.max(3, ...runs.map((r) => r.length + 1)));
+  return `${fence}${language}\n${text}\n${fence}`;
+}
+
+/** 工具调用的入参/结果：Markdown 围栏代码块 → Streamdown（@streamdown/code 高亮 + 复制按钮） */
+function ToolContent({ value, error }: { value: unknown; error?: boolean }) {
+  const { text, truncated, language } = useMemo(() => toToolText(value), [value]);
+  return (
+    <div className={error ? "tool-code tool-code-error" : "tool-code"}>
+      <Streamdown
+        plugins={markdownPlugins}
+        controls={codeBlockControls}
+        translations={codeBlockTranslations}
+        /* 内联 max-height 由 streamdown 自己加；纵向滚动仍靠 globals.css 的 overflow-y（它的 overflow-y-auto 是 tailwind 类，本项目不生效） */
+        codeBlockMaxHeight={TOOL_CODE_MAX_HEIGHT}
+      >
+        {fenced(text, language)}
+      </Streamdown>
+      {truncated && <div className="tool-code-note">已截断，仅显示前 {TOOL_TEXT_LIMIT} 字符</div>}
+    </div>
+  );
 }
 
 const DENIED_TEXT = "已拒绝";
@@ -82,8 +142,21 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
   const [errorBanner, setErrorBanner] = useState("");
   const [tokenUsage, setTokenUsage] = useState({ input: 0, output: 0, cached: 0, cacheCreation: 0 });
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [plan, setPlan] = useState<PlanInfo | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  /** 拉取最新方案文档（agent 用 plan 工具写出后会出现） */
+  const loadPlan = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/plan`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { plan?: PlanInfo | null };
+      setPlan(data.plan ?? null);
+    } catch {
+      /* 面板是可选增强，失败静默 */
+    }
+  }, [sessionId]);
 
   const scrollToBottom = useCallback(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: "smooth" });
@@ -100,6 +173,11 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
     setShowScrollBtn(dist > 120);
   };
 
+  // 加载方案文档（与历史并行）
+  useEffect(() => {
+    void loadPlan();
+  }, [loadPlan]);
+
   // 加载会话历史（含工具调用结果重建）
   useEffect(() => {
     let cancelled = false;
@@ -110,37 +188,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
       .then((r) => r.json())
       .then((session: { messages?: PersistedMessage[]; meta?: Record<string, unknown> }) => {
         if (cancelled || !session?.messages) return;
-        const toolResults = new Map<string, { ok: boolean; output: unknown }>();
-        for (const m of session.messages) {
-          if (m.role === "tool" && m.toolCallId) {
-            let parsed: unknown = m.content;
-            try {
-              parsed = JSON.parse(m.content);
-            } catch {
-              /* 保持原文 */
-            }
-            const isErr = typeof parsed === "object" && parsed !== null && "error" in (parsed as object);
-            toolResults.set(m.toolCallId, { ok: !isErr, output: parsed });
-          }
-        }
-        const ui: UiMessage[] = session.messages
-          .filter((m) => m.role === "user" || m.role === "assistant")
-          .map((m) => ({
-            id: m.id,
-            role: m.role as "user" | "assistant",
-            content: m.content,
-            toolCalls: (m.toolCalls ?? []).map((tc) => {
-              const r = toolResults.get(tc.id);
-              return {
-                id: tc.id,
-                name: tc.name,
-                input: tc.input,
-                status: r ? toolStatusFromResult(r.ok, r.output) : "running",
-                output: r?.output,
-              };
-            }),
-          }));
-        setMessages(ui);
+        setMessages(toUiMessages(session.messages));
 
         // 恢复已持久化的 token 统计：优先会话级累计（meta.tokenUsage，窗口裁剪/压缩后依然准确）；
         // 旧会话无 meta 时回退到消息级 usage 求和
@@ -200,7 +248,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
         throw new Error(data?.error ?? `HTTP ${res.status}`);
       }
       await consumeSSE(res, (chunk) => {
-        // usage 是独立的 setState，不能放在 setMessages updater 内：
+        // usage / error 是独立的 setState，不能放在 setMessages updater 内：
         // React StrictMode 会 double-invoke updater，导致嵌套副作用执行两次（token 累加 2 倍）
         if (chunk.type === "usage") {
           setTokenUsage((u) => ({
@@ -211,34 +259,8 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
           }));
           return;
         }
-        setMessages((ms) => {
-          const next = [...ms];
-          const i = next.length - 1;
-          const last = next[i]!;
-          if (chunk.type === "text") {
-            next[i] = { ...last, content: last.content + chunk.delta };
-          } else if (chunk.type === "tool_call") {
-            next[i] = {
-              ...last,
-              toolCalls: [...last.toolCalls, { id: chunk.id, name: chunk.name, input: chunk.input, status: "running" }],
-            };
-          } else if (chunk.type === "tool_result") {
-            next[i] = {
-              ...last,
-              toolCalls: last.toolCalls.map((tc) =>
-                tc.id === chunk.id
-                  ? { ...tc, status: toolStatusFromResult(chunk.ok, chunk.output), output: chunk.output }
-                  : tc,
-              ),
-            };
-          } else if (chunk.type === "error") {
-            setErrorBanner(chunk.message);
-            next[i] = { ...last, streaming: false };
-          } else if (chunk.type === "done") {
-            next[i] = { ...last, streaming: false };
-          }
-          return next;
-        });
+        if (chunk.type === "error") setErrorBanner(chunk.message);
+        setMessages((ms) => applyChunk(ms, chunk));
       });
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
@@ -255,6 +277,8 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
       setStreaming(false);
       abortRef.current = null;
       window.dispatchEvent(new Event("one-agent:sessions-changed"));
+      // 本轮可能刚写入方案文档（plan 工具）→ 刷新面板
+      void loadPlan();
     }
   };
 
@@ -301,11 +325,47 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
         </div>
       )}
 
+      {plan && (
+        <details className="plan-panel">
+          <summary>
+            <span className="plan-panel-title">📋 方案文档</span>
+            <code className="plan-panel-path">{plan.path}</code>
+            <span className="muted plan-panel-time">{new Date(plan.updatedAt).toLocaleString()}</span>
+          </summary>
+          <div className="plan-panel-body">
+            <div className="bubble">
+              <Streamdown
+                plugins={markdownPlugins}
+                controls={codeBlockControls}
+                translations={codeBlockTranslations}
+                codeBlockMaxHeight={0}
+              >
+                {plan.content}
+              </Streamdown>
+            </div>
+          </div>
+        </details>
+      )}
+
       <div className="chat-body" ref={bodyRef} onScroll={onScroll}>
         {loadingHistory && <p className="muted">加载历史…</p>}
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}`}>
             <div className="msg-content">
+              {(m.content || m.streaming) && (
+                <div className="bubble">
+                  <Streamdown
+                    plugins={markdownPlugins}
+                    controls={codeBlockControls}
+                    translations={codeBlockTranslations}
+                    /* 消息里的代码块不限高（0 = 关闭内置的 400px 默认限高），保持原有阅读体验 */
+                    codeBlockMaxHeight={0}
+                  >
+                    {m.content || (m.streaming ? "…" : "")}
+                  </Streamdown>
+                  {m.streaming && <span className="cursor">▍</span>}
+                </div>
+              )}
               {m.role === "assistant" && m.toolCalls.length > 0 && (
                 <div className="tool-calls">
                   {m.toolCalls.map((tc) => (
@@ -316,26 +376,24 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
                       </summary>
                       <div className="tool-input">
                         <div className="label">入参</div>
-                        <pre>{formatOutput(tc.input)}</pre>
+                        <ToolContent value={tc.input} />
                       </div>
                       {tc.status !== "running" && (
                         <div className="tool-output">
                           <div className="label">结果</div>
-                          <pre className={tc.status === "error" || tc.status === "denied" ? "tool-output-error" : ""}>
-                            {tc.status === "denied"
-                              ? "危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）"
-                              : formatOutput(tc.output)}
-                          </pre>
+                          {tc.status === "denied" ? (
+                            <p className="tool-denied-note">
+                              危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）
+                            </p>
+                          ) : (
+                            <ToolContent value={tc.output} error={tc.status === "error"} />
+                          )}
                         </div>
                       )}
                     </details>
                   ))}
                 </div>
               )}
-              <div className="bubble">
-                <Streamdown plugins={markdownPlugins}>{m.content || (m.streaming ? "…" : "")}</Streamdown>
-                {m.streaming && <span className="cursor">▍</span>}
-              </div>
               {!m.streaming && (
                 <button
                   className="msg-delete"

@@ -131,3 +131,28 @@ describe("OpenAICompatibleProvider", () => {
     ).rejects.toThrow(/modelId/);
   });
 });
+
+describe("请求体形状（回归：Ollama 拒绝 content: null）", () => {
+  it("历史里的空 content assistant 消息发空串而不是 null", async () => {
+    const bodies: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        bodies.push(String(init.body));
+        return sseResponse([`data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n`, "data: [DONE]\n\n"]);
+      }),
+    );
+    const provider = new OpenAICompatibleProvider();
+    // 上一轮模型只发了工具调用 → content 为空串（会随历史回放）
+    const history: LLMMessage[] = [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "", toolCalls: [{ id: "c1", name: "plan", input: { content: "x" } }] },
+      { role: "tool", content: "{}", toolCallId: "c1" },
+    ];
+    await collect(provider, config, history);
+
+    const sent = JSON.parse(bodies[0]!) as { messages: Array<{ role: string; content: unknown }> };
+    const assistant = sent.messages.find((m) => m.role === "assistant")!;
+    expect(assistant.content).toBe(""); // 不是 null —— 否则 Ollama 返回 400 invalid message content type: <nil>
+  });
+});

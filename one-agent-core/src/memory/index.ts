@@ -43,7 +43,8 @@ export async function compactMessages(opts: {
   let prefix = 0;
   while (prefix < messages.length && messages[prefix]!.role === "system") prefix++;
   const cutEnd = Math.max(prefix, messages.length - keepRecent);
-  const toSummarize = messages.slice(prefix, cutEnd);
+  // 派生消息（如压缩后注入的 todo 快照）不参与历史摘要：它们本身就是压缩的产物
+  const toSummarize = messages.slice(prefix, cutEnd).filter((m) => !m.synthetic);
   if (toSummarize.length < 3) return false;
 
   const summaryPrompt: LLMMessage = {
@@ -55,11 +56,27 @@ export async function compactMessages(opts: {
   const trimmed = text.trim();
   if (!trimmed) return false;
 
-  messages.splice(prefix, toSummarize.length, {
+  // 确认摘要可用后才改写历史：整段替换为摘要，并清掉范围内的派生消息
+  messages.splice(prefix, cutEnd - prefix, {
     role: "system",
     content: `[历史对话摘要]\n${trimmed}`,
   });
+  // 尾部若残留旧的派生消息（压缩前位于 keepRecent 窗口内）也一并丢弃：
+  // AgentLoop 会在压缩成功后按最新状态重新注入（见 planning/todo 的 P1-c）
+  dropSyntheticMessages(messages, prefix + 1);
   return true;
+}
+
+/** 移除 index >= from 的全部合成消息（派生数据，重写历史时一并丢弃）；返回移除条数 */
+export function dropSyntheticMessages(messages: LLMMessage[], from = 0): number {
+  let removed = 0;
+  for (let i = messages.length - 1; i >= from; i--) {
+    if (messages[i]!.synthetic) {
+      messages.splice(i, 1);
+      removed++;
+    }
+  }
+  return removed;
 }
 
 /** 消费流式响应，拼接文本（用于摘要等一次性调用）；忽略 usage/done */

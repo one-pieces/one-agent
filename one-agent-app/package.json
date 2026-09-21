@@ -14,6 +14,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@one-agent/core": "file:../one-agent-core",
     "@streamdown/cjk": "^1.0.3",
+    "@streamdown/code": "^1.1.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.31.0",
     "next": "^16.3.0",
@@ -21,7 +22,7 @@
     "radix-ui": "^1.6.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "streamdown": "^2.5.0"
+    "streamdown": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

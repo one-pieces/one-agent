@@ -5,8 +5,10 @@ import { randomUUID } from "node:crypto";
 import {
   Agent,
   ToolRegistry,
+  TodoStore,
   builtinTools,
   createProvider,
+  createTodoTool,
   SqliteSessionStore,
   validateAgentConfig,
   type AgentConfig,
@@ -40,6 +42,8 @@ export class InProcessKernel {
   private cache = new Map<string, { config: AgentConfig; agent: Agent }>();
   private providerFactory: (kind: ProviderConfig["provider"]) => LanguageProvider;
   readonly store: SqliteSessionStore;
+  /** 计划工件（todo）存储：与 Agent 共享同一实例，工具写入 → 轮尾合并进 session.meta.todos */
+  readonly todos: TodoStore;
   /** 会话工作区根目录（与 sessions.db 同级：data/workspace）—— agent 文件类工具的相对路径基准 */
   readonly workspaceRoot: string;
 
@@ -49,6 +53,7 @@ export class InProcessKernel {
   ) {
     mkdirSync(dirname(sessionDbPath), { recursive: true });
     this.store = new SqliteSessionStore(sessionDbPath);
+    this.todos = new TodoStore(this.store);
     this.workspaceRoot = join(dirname(sessionDbPath), "workspace");
     // 默认注入日志型 fetch → 每次 LLM 请求记录到 /api/logs
     this.providerFactory =
@@ -70,16 +75,27 @@ export class InProcessKernel {
     if (config.knowledgeBaseIds?.length && !config.tools.some((t) => t.name === "knowledge_search")) {
       config = { ...config, tools: [...config.tools, { name: "knowledge_search", enabled: true }] };
     }
+    // 开启规划规程（planning.mode="prompt"）时自动启用 todo 计划工件，否则规程会指导模型用一个用不了的工具。
+    // 注意判据是「已启用」而不是「条目存在」：条目存在但 enabled:false（用户曾关过）时同样要启用。
+    if (config.planning?.mode === "prompt" && !config.tools.some((t) => t.name === "todo" && t.enabled)) {
+      config = {
+        ...config,
+        tools: [...config.tools.filter((t) => t.name !== "todo"), { name: "todo", enabled: true }],
+      };
+    }
     const cached = this.cache.get(config.id);
     if (cached && JSON.stringify(cached.config) === JSON.stringify(config)) return cached.agent;
 
     const registry = new ToolRegistry();
     for (const t of builtinTools) registry.add(t);
     if (config.knowledgeBaseIds?.length) registry.add(createKnowledgeSearchTool(config.knowledgeBaseIds));
+    // 有状态工具：TodoStore 与 Agent 共享，状态按 ctx.sessionId 隔离
+    registry.add(createTodoTool(this.todos));
     const agent = new Agent(validateAgentConfig(config), {
       provider: this.providerFactory(config.model.provider),
       tools: registry,
       sessionStore: this.store,
+      todos: this.todos,
     });
     this.cache.set(config.id, { config, agent });
     return agent;
@@ -163,6 +179,7 @@ export class InProcessKernel {
   /** 删除会话：同时清理对应会话工作区文件（防止孤儿文件堆积） */
   async deleteSession(sessionId: string): Promise<void> {
     await this.store.deleteSession(sessionId);
+    this.todos.forget(sessionId);
     try {
       await rm(this.sessionWorkspacePath(sessionId), { recursive: true, force: true });
     } catch {

@@ -7,11 +7,12 @@ import { grepTool } from "./grep.ts";
 import { findTool } from "./find.ts";
 import { lsTool } from "./ls.ts";
 import { treeTool } from "./tree.ts";
+import { planTool } from "./plan.ts";
 import { webSearchTool } from "./web_search.ts";
 
 /**
  * 内置工具全集（按需注册进 ToolRegistry）。
- * 工具目录：read / write / edit / bash / grep / find / ls / tree / web_search
+ * 工具目录：read / write / edit / bash / grep / find / ls / tree / web_search / plan
  * （bash 标记 dangerous，AgentForm 默认关闭；knowledge_search 为应用层动态工具）
  */
 export const builtinTools: ToolSpec[] = [
@@ -24,6 +25,7 @@ export const builtinTools: ToolSpec[] = [
   lsTool,
   treeTool,
   webSearchTool,
+  planTool,
 ];
 
 export { readTool } from "./read.ts";
@@ -34,4 +36,5 @@ export { grepTool } from "./grep.ts";
 export { findTool } from "./find.ts";
 export { lsTool } from "./ls.ts";
 export { treeTool } from "./tree.ts";
+export { planTool } from "./plan.ts";
 export { webSearchTool } from "./web_search.ts";

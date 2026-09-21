@@ -3,6 +3,7 @@ import { createProvider, type LanguageProvider } from "../providers/index.ts";
 import { ToolRegistry } from "../tools/index.ts";
 import { validateAgentConfig } from "./config.ts";
 import { agentLoop, type RunOptions } from "./AgentLoop.ts";
+import { TodoStore } from "../todo/TodoStore.ts";
 import {
   InMemorySessionStore,
   type Message,
@@ -24,6 +25,8 @@ export class Agent {
   provider: LanguageProvider;
   readonly tools: ToolRegistry;
   readonly sessionStore: SessionStore;
+  /** 计划工件（todo）存储；按 sessionId 隔离，随会话 meta 持久化 */
+  readonly todos: TodoStore;
 
   constructor(
     config: AgentConfig,
@@ -33,6 +36,8 @@ export class Agent {
       sessionStore?: SessionStore;
       /** 注入自定义 fetch（日志/代理），缺省用全局 fetch */
       fetchFn?: typeof fetch;
+      /** 计划工件存储（todo）；缺省基于 sessionStore 自建，应用层应注入同一实例供 todo 工具共享 */
+      todos?: TodoStore;
     },
   ) {
     this._config = validateAgentConfig(config);
@@ -40,6 +45,7 @@ export class Agent {
       deps?.provider ?? createProvider(config.model.provider, deps?.fetchFn ? { fetch: deps.fetchFn } : undefined);
     this.tools = deps?.tools ?? new ToolRegistry();
     this.sessionStore = deps?.sessionStore ?? new InMemorySessionStore();
+    this.todos = deps?.todos ?? new TodoStore(this.sessionStore);
   }
 
   getConfig(): AgentConfig {
@@ -81,7 +87,7 @@ export class Agent {
           ? [...history.map(toLLMMessage), { role: "user", content: input }]
           : input.map((m) => ({ ...m }));
 
-      const loop = agentLoop(agent, messages, opts);
+      const loop = agentLoop(agent, messages, { ...opts, sessionId });
       // 捕获本轮整轮用量（usage chunk 由 agentLoop 在 done 前聚合发出一次）→ 累加到会话 meta
       let turnUsage: TokenUsage | undefined;
       for await (const chunk of loop) {
@@ -98,7 +104,16 @@ export class Agent {
 
       // 正常完成 → 持久化（含 system 指令、工具调用、摘要）
       const timestamp = now();
-      const existingMeta = (existing?.meta ?? {}) as Record<string, unknown>;
+      // 收尾合并：磁盘上的 meta 可能已被本轮的 todo 工具/前端覆盖更新过，
+      // 直接沿用 run 开始时的快照回写会覆盖这些改动（详见 docs/todo-list-design.md §0）。
+      const fresh = await agent.sessionStore.getSession(sessionId);
+      const existingMeta = {
+        ...(((existing?.meta ?? {}) as Record<string, unknown>)),
+        ...(((fresh?.meta ?? {}) as Record<string, unknown>)),
+      };
+      // 计划工件：轮内内存副本是最新状态，优先于磁盘
+      const todoSnapshot = agent.todos.snapshotForMeta(sessionId);
+      if (todoSnapshot) existingMeta.todos = todoSnapshot;
       // 会话标题：首条用户消息前 60 字符（一次性生成）
       if (!existingMeta.title) {
         const firstUser = messages.find((m) => m.role === "user");

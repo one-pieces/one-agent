@@ -1,0 +1,126 @@
+import type { Message as PersistedMessage, StreamChunk } from "@one-agent/core";
+
+/**
+ * 对话流的 UI 数据模型与纯函数归约器（无 React 依赖，可单测）。
+ *
+ * 顺序约定（与内核 AgentLoop / 落库结构一致）：
+ *   一次 LLM 调用 = 一条 assistant 消息 = 「文本」在前、「本次调用的工具卡片」在后；
+ *   上一轮工具全部返回后到来的增量属于下一轮调用 → 另起一条消息。
+ * 这样文本与工具卡按真实发生顺序交替，而不是把整轮的工具卡都堆在消息开头
+ * （历史回放与实时流式渲染结果一致）。
+ */
+
+export type ToolStatus = "running" | "done" | "error" | "denied";
+
+export interface UiToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+  status: ToolStatus;
+  output?: unknown;
+}
+
+export interface UiMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  toolCalls: UiToolCall[];
+  streaming?: boolean;
+}
+
+export const DENIED_TEXT = "已拒绝";
+
+export function uid(): string {
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 工具结果 → 展示状态（"已拒绝" 文案标记审批被拒） */
+export function toolStatusFromResult(ok: boolean, output: unknown): ToolStatus {
+  if (!ok && String(output).includes(DENIED_TEXT)) return "denied";
+  return ok ? "done" : "error";
+}
+
+/**
+ * 上一轮 LLM 调用是否已结束（有工具调用且全部拿到结果）。
+ * AgentLoop 只在单次模型调用结束后发出 tool_call / tool_result，
+ * 所以「工具全部返回」= 该轮结束；之后到来的 text/tool_call 属于下一轮调用。
+ */
+export function iterationFinished(m: UiMessage | undefined): boolean {
+  return !!m && m.toolCalls.length > 0 && m.toolCalls.every((tc) => tc.status !== "running");
+}
+
+/** 把单个流事件应用到消息列表（纯函数：同样输入 → 同样输出） */
+export function applyChunk(ms: UiMessage[], chunk: StreamChunk): UiMessage[] {
+  const next = [...ms];
+  const last = next[next.length - 1];
+  if (!last) return next;
+
+  // 新一轮调用的起始事件 → 另起一条 assistant 消息（上一轮置为非流式）
+  if ((chunk.type === "text" || chunk.type === "tool_call") && iterationFinished(last)) {
+    next[next.length - 1] = { ...last, streaming: false };
+    next.push({ id: uid(), role: "assistant", content: "", toolCalls: [], streaming: true });
+  }
+
+  const i = next.length - 1;
+  const cur = next[i]!;
+  if (chunk.type === "text") {
+    next[i] = { ...cur, content: cur.content + chunk.delta };
+  } else if (chunk.type === "tool_call") {
+    next[i] = {
+      ...cur,
+      toolCalls: [...cur.toolCalls, { id: chunk.id, name: chunk.name, input: chunk.input, status: "running" }],
+    };
+  } else if (chunk.type === "tool_result") {
+    // 结果归属持有该 tool_call 的那条消息（通常就是最后一条）
+    const owner = next.findIndex((m) => m.toolCalls.some((tc) => tc.id === chunk.id));
+    const k = owner >= 0 ? owner : i;
+    const msg = next[k]!;
+    next[k] = {
+      ...msg,
+      toolCalls: msg.toolCalls.map((tc) =>
+        tc.id === chunk.id ? { ...tc, status: toolStatusFromResult(chunk.ok, chunk.output), output: chunk.output } : tc,
+      ),
+    };
+  } else if (chunk.type === "done") {
+    next[i] = { ...cur, streaming: false };
+  }
+  return next;
+}
+
+/**
+ * 落库消息 → UI 消息（历史回放）。
+ * 过滤 system/tool 消息与**合成消息**（如压缩后注入的 todo 快照 —— 内核产物，不代表用户输入）；
+ * 工具结果按 toolCallId 回填到发起它的那条 assistant 消息。
+ */
+export function toUiMessages(messages: PersistedMessage[]): UiMessage[] {
+  const toolResults = new Map<string, { ok: boolean; output: unknown }>();
+  for (const m of messages) {
+    if (m.role === "tool" && m.toolCallId) {
+      let parsed: unknown = m.content;
+      try {
+        parsed = JSON.parse(m.content);
+      } catch {
+        /* 保持原文 */
+      }
+      const isErr = typeof parsed === "object" && parsed !== null && "error" in (parsed as object);
+      toolResults.set(m.toolCallId, { ok: !isErr, output: parsed });
+    }
+  }
+  return messages
+    .filter((m) => !m.synthetic && (m.role === "user" || m.role === "assistant"))
+    .map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      toolCalls: (m.toolCalls ?? []).map((tc) => {
+        const r = toolResults.get(tc.id);
+        return {
+          id: tc.id,
+          name: tc.name,
+          input: tc.input,
+          status: r ? toolStatusFromResult(r.ok, r.output) : "running",
+          output: r?.output,
+        };
+      }),
+    }));
+}
