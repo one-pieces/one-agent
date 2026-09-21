@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyChunk, iterationFinished, toUiMessages, type UiMessage } from "../lib/chat-messages";
+import { applyChunk, iterationFinished, toolStatusFromResult, toUiMessages, type UiMessage } from "../lib/chat-messages";
 import type { Message as PersistedMessage, StreamChunk } from "@one-agent/core";
 
 /** 模拟内核 SSE 事件序列：文本 → 工具卡片 → 结果 → 下一轮文本 */
@@ -149,5 +149,30 @@ describe("toUiMessages 隐藏合成消息", () => {
       ["user", "继续推进"],
       ["assistant", "好"],
     ]);
+  });
+});
+
+describe("toolStatusFromResult（工具卡片状态判定）", () => {
+  it("成功 → done", () => {
+    expect(toolStatusFromResult(true, { ok: true })).toBe("done");
+  });
+
+  it("普通失败 → error", () => {
+    expect(toolStatusFromResult(false, { error: "文件不存在" })).toBe("error");
+  });
+
+  it("字符串输出带「已拒绝」→ denied", () => {
+    expect(toolStatusFromResult(false, "已拒绝：危险操作未获批准")).toBe("denied");
+  });
+
+  // 回归：工具结果是对象，早先用 String(output) 判定会得到 "[object Object]"，
+  // 导致「已拒绝」状态在真实数据下永远不生效（面板退化成一片 JSON）
+  it("对象输出带「已拒绝」→ denied（对象也要能判定）", () => {
+    expect(toolStatusFromResult(false, { error: "已拒绝：危险操作未获批准" })).toBe("denied");
+    expect(toolStatusFromResult(false, { error: { message: "已拒绝" } })).toBe("denied");
+  });
+
+  it("对象里恰好提到「已拒绝」但 ok=true → 仍算成功", () => {
+    expect(toolStatusFromResult(true, { text: "已拒绝的记录有 3 条" })).toBe("done");
   });
 });

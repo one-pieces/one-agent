@@ -1,14 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircleIcon,
   ArrowDownIcon,
-  CheckCircle2Icon,
-  ClockIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  FileDiffIcon,
+  FilePenIcon,
+  FileTextIcon,
+  FolderIcon,
+  GlobeIcon,
+  LibraryIcon,
+  ListTodoIcon,
+  LoaderCircleIcon,
+  NotebookPenIcon,
+  SearchIcon,
   ShieldAlertIcon,
-  Trash2Icon,
-  XCircleIcon,
+  TerminalIcon,
+  WrenchIcon,
+  XIcon,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { cjk } from "@streamdown/cjk";
@@ -91,8 +102,40 @@ function fenced(text: string, language: string): string {
 }
 
 /** 工具调用的入参/结果：Markdown 围栏代码块 → Streamdown（@streamdown/code 高亮 + 复制按钮） */
-function ToolContent({ value, error }: { value: unknown; error?: boolean }) {
-  const { text, truncated, language } = useMemo(() => toToolText(value), [value]);
+function ToolContent({
+  value,
+  error,
+  name,
+  kind,
+}: {
+  value: unknown;
+  error?: boolean;
+  /** 工具名（用于按工具定制展示形式，如 bash 的终端行） */
+  name?: string;
+  kind?: "input" | "output";
+}) {
+  const { text, truncated, language } = useMemo(() => {
+    // bash 的输入就是一条命令 → 渲染成 `$ ls -la` 的终端行（Devin 那种 shell 观感），
+    // JSON 只在参数确实是结构化的场景下才更可读
+    if (kind === "input" && name === "bash" && value && typeof value === "object") {
+      const cmd = (value as Record<string, unknown>).command;
+      if (typeof cmd === "string" && cmd.trim()) {
+        return { text: `$ ${cmd.trim()}`, truncated: false, language: "bash" };
+      }
+    }
+    // bash 的输出是 { stdout, stderr } 信封 → 还原成终端文本（否则展开看到的是转义过的 JSON）
+    if (kind === "output" && name === "bash" && value && typeof value === "object") {
+      const { stdout, stderr } = value as { stdout?: unknown; stderr?: unknown };
+      const out = [typeof stdout === "string" ? stdout : "", typeof stderr === "string" ? stderr : ""]
+        .filter((s) => s.trim())
+        .join("\n");
+      if (out.trim()) {
+        const truncated = out.length > TOOL_TEXT_LIMIT;
+        return { text: truncated ? out.slice(0, TOOL_TEXT_LIMIT) : out, truncated, language: "bash" };
+      }
+    }
+    return toToolText(value);
+  }, [value, name, kind]);
   return (
     <div className={error ? "tool-code tool-code-error" : "tool-code"}>
       <Streamdown
@@ -109,27 +152,115 @@ function ToolContent({ value, error }: { value: unknown; error?: boolean }) {
   );
 }
 
-const DENIED_TEXT = "已拒绝";
-
-function toolStatusFromResult(ok: boolean, output: unknown): ToolStatus {
-  if (!ok && String(output).includes(DENIED_TEXT)) return "denied";
-  return ok ? "done" : "error";
+/**
+ * 工具行图标：按动作语义选图标。折叠态一行一个动作、不显示工具名以外的装饰文字，
+ * 靠图标表达"读了文件 / 跑了命令 / 搜了什么"（对齐 Devin 的动作流）。
+ */
+/**
+ * 流式期间「正在做什么」（空串 = 不显示）。
+ * 工具在执行 → 报工具名；还没有任何正文 → 表示在等模型（此刻消息区原本只有一个闪烁光标）。
+ * 正文已经在流式输出时不显示（文末的光标已经够表达「还在写」）。
+ */
+function activityLabel(m: UiMessage): string {
+  if (!m.streaming) return "";
+  const running = m.toolCalls.filter((tc) => tc.status === "running").map((tc) => tc.name);
+  if (running.length > 0) return `正在执行 ${running.join("、")}…`;
+  return m.content ? "" : "正在思考…";
 }
 
-const toolStatusMeta: Record<ToolStatus, { label: string; icon: typeof ClockIcon; cls: string }> = {
-  running: { label: "执行中", icon: ClockIcon, cls: "tool-running" },
-  done: { label: "完成", icon: CheckCircle2Icon, cls: "tool-done" },
-  error: { label: "失败", icon: XCircleIcon, cls: "tool-error" },
-  denied: { label: "已拒绝", icon: ShieldAlertIcon, cls: "tool-denied" },
+/** 耗时文案：<60s 显示 12s；≥60s 显示 1m20s */
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  return `${m}m${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+/**
+ * 流式 loading 行：旋转图标 + 文案 + 已用时长。
+ * 计时以「阶段」为单位 —— label 一变（等模型 → 执行某个工具 → 下一个工具）即从 0 重新计，
+ * 所以 12s 表示"这个阶段已经跑了 12 秒"，而不是整轮的总时长。
+ */
+function AgentWorking({ label }: { label: string }) {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    setSeconds(0);
+    const startedAt = Date.now();
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt) / 1000)), 500);
+    return () => clearInterval(timer);
+  }, [label]);
+
+  return (
+    <div className="agent-working">
+      <LoaderCircleIcon className="agent-working-icon" size={14} aria-hidden />
+      <span>{label}</span>
+      {/* 不足 1 秒不显示，避免刚发出就闪一个 0s */}
+      {seconds >= 1 && <span className="agent-working-elapsed">{formatElapsed(seconds)}</span>}
+    </div>
+  );
+}
+
+const toolGlyphs: Record<string, typeof WrenchIcon> = {
+  read: FileTextIcon,
+  write: FilePenIcon,
+  edit: FileDiffIcon,
+  bash: TerminalIcon,
+  grep: SearchIcon,
+  find: SearchIcon,
+  ls: FolderIcon,
+  tree: FolderIcon,
+  web_search: GlobeIcon,
+  knowledge_search: LibraryIcon,
+  todo: ListTodoIcon,
+  plan: NotebookPenIcon,
 };
 
-function ToolStatusBadge({ status }: { status: ToolStatus }) {
-  const meta = toolStatusMeta[status];
-  const Icon = meta.icon;
+/** 摘要取值的字段优先级：先看主参数（路径/命令/查询），再兜底任意字符串字段 */
+const SUMMARY_KEYS = ["path", "paths", "command", "query", "pattern", "title", "url", "name", "action"];
+
+/**
+ * 折叠行的参数摘要：挑一个最有信息量的字段单行展示（超长由 CSS 省略号截断）。
+ * bash 是命令行工具 → 加 `$ ` 前缀，读起来就是一条终端命令。
+ */
+function summarizeToolInput(name: string, input: unknown): string {
+  const obj = input && typeof input === "object" ? (input as Record<string, unknown>) : null;
+  if (!obj) return typeof input === "string" ? input.replace(/\s+/g, " ").slice(0, 160) : "";
+  let picked = "";
+  for (const key of SUMMARY_KEYS) {
+    const v = obj[key];
+    if (typeof v === "string" && v.trim()) {
+      picked = v.trim();
+      break;
+    }
+    if (Array.isArray(v)) {
+      const joined = v.filter((x): x is string => typeof x === "string").join(" ");
+      if (joined) {
+        picked = joined;
+        break;
+      }
+    }
+  }
+  if (!picked) {
+    const first = Object.values(obj).find((v) => typeof v === "string" && v.trim());
+    picked = typeof first === "string" ? first.trim() : "";
+  }
+  if (!picked) return "";
+  return (name === "bash" ? `$ ${picked}` : picked).replace(/\s+/g, " ").slice(0, 160);
+}
+
+/** 行尾状态：只留一个图标（文字进 title/aria-label），保持整行安静 */
+const toolStatusMeta: Record<ToolStatus, { label: string; icon: typeof WrenchIcon }> = {
+  running: { label: "执行中", icon: LoaderCircleIcon },
+  done: { label: "完成", icon: CheckIcon },
+  error: { label: "失败", icon: XIcon },
+  denied: { label: "已拒绝", icon: ShieldAlertIcon },
+};
+
+function ToolState({ status }: { status: ToolStatus }) {
+  const { label, icon: Icon } = toolStatusMeta[status];
   return (
-    <span className={`tool-status ${meta.cls}`}>
+    <span className={`tool-state tool-state-${status}`} title={label} aria-label={label}>
       <Icon size={13} />
-      {meta.label}
     </span>
   );
 }
@@ -284,15 +415,6 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
 
   const stop = () => abortRef.current?.abort();
 
-  const handleDeleteMessage = async (messageId: string) => {
-    setMessages((ms) => ms.filter((m) => m.id !== messageId));
-    try {
-      await fetch(`/api/sessions/${sessionId}/messages/${messageId}`, { method: "DELETE" });
-    } catch {
-      /* 本地已移除，忽略远端失败 */
-    }
-  };
-
   return (
     <div className="chat-root">
       <header className="chat-header">
@@ -304,13 +426,6 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
           </span>
         </div>
         <div className="chat-header-right">
-          {(tokenUsage.input > 0 || tokenUsage.output > 0) && (
-            <span className="token-badge" title="本会话累计 token 用量（◎ 缓存命中 / ＋ 缓存写入）">
-              ↑{tokenUsage.input.toLocaleString()} ↓{tokenUsage.output.toLocaleString()}
-              {tokenUsage.cached > 0 && <> ◎{tokenUsage.cached.toLocaleString()}</>}
-              {tokenUsage.cacheCreation > 0 && <> ＋{tokenUsage.cacheCreation.toLocaleString()}</>}
-            </span>
-          )}
           <SessionSettings sessionId={sessionId} agent={agent} />
         </div>
       </header>
@@ -349,10 +464,17 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
 
       <div className="chat-body" ref={bodyRef} onScroll={onScroll}>
         {loadingHistory && <p className="muted">加载历史…</p>}
-        {messages.map((m) => (
-          <div key={m.id} className={`msg ${m.role}`}>
+        {messages.map((m, i) => (
+          <Fragment key={m.id}>
+            {/* 压缩边界：以上是被摘要覆盖的早期对话（原文保留、只是模型看到的是摘要） */}
+            {!m.compacted && messages[i - 1]?.compacted && (
+              <div className="history-divider" title="模型上下文里这部分已被摘要取代，原始记录仍保留在会话中">
+                <span>早期对话已压缩为摘要（{messages.filter((x) => x.compacted).length} 条）</span>
+              </div>
+            )}
+            <div className={`msg ${m.role}`}>
             <div className="msg-content">
-              {(m.content || m.streaming) && (
+              {m.content && (
                 <div className="bubble">
                   <Streamdown
                     plugins={markdownPlugins}
@@ -361,50 +483,57 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
                     /* 消息里的代码块不限高（0 = 关闭内置的 400px 默认限高），保持原有阅读体验 */
                     codeBlockMaxHeight={0}
                   >
-                    {m.content || (m.streaming ? "…" : "")}
+                    {m.content}
                   </Streamdown>
                   {m.streaming && <span className="cursor">▍</span>}
                 </div>
               )}
               {m.role === "assistant" && m.toolCalls.length > 0 && (
                 <div className="tool-calls">
-                  {m.toolCalls.map((tc) => (
-                    <details key={tc.id} className="tool-card" open={tc.status === "running"}>
-                      <summary>
-                        <span className="tool-name">🔧 {tc.name}</span>
-                        <ToolStatusBadge status={tc.status} />
-                      </summary>
-                      <div className="tool-input">
-                        <div className="label">入参</div>
-                        <ToolContent value={tc.input} />
-                      </div>
-                      {tc.status !== "running" && (
-                        <div className="tool-output">
-                          <div className="label">结果</div>
-                          {tc.status === "denied" ? (
-                            <p className="tool-denied-note">
-                              危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）
-                            </p>
-                          ) : (
-                            <ToolContent value={tc.output} error={tc.status === "error"} />
+                  {m.toolCalls.map((tc) => {
+                    const Glyph = toolGlyphs[tc.name] ?? WrenchIcon;
+                    const target = summarizeToolInput(tc.name, tc.input);
+                    return (
+                      <details key={tc.id} className="tool-card" open={tc.status === "running"}>
+                        <summary>
+                          <ChevronRightIcon className="tool-chevron" size={15} aria-hidden />
+                          <Glyph className="tool-glyph" size={14} aria-hidden />
+                          <span className="tool-verb">{tc.name}</span>
+                          {target && <span className="tool-target">{target}</span>}
+                          <ToolState status={tc.status} />
+                        </summary>
+                        <div className="tool-body">
+                          <div className="tool-section">
+                            <div className="tool-label">INPUT</div>
+                            <ToolContent value={tc.input} name={tc.name} kind="input" />
+                          </div>
+                          {tc.status !== "running" && (
+                            <div className="tool-section">
+                              <div className="tool-label">OUTPUT</div>
+                              {tc.status === "denied" ? (
+                                <p className="tool-denied-note">
+                                  危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）
+                                </p>
+                              ) : (
+                                <ToolContent value={tc.output} error={tc.status === "error"} name={tc.name} kind="output" />
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </details>
-                  ))}
+                      </details>
+                    );
+                  })}
                 </div>
               )}
-              {!m.streaming && (
-                <button
-                  className="msg-delete"
-                  onClick={() => void handleDeleteMessage(m.id)}
-                  title="删除消息"
-                >
-                  <Trash2Icon size={13} />
-                </button>
-              )}
+
+              {/* 流式 loading：跟在正文/工具行之后（等模型 → 正在思考；执行工具 → 正在执行 xxx + 已用时长） */}
+              {(() => {
+                const label = activityLabel(m);
+                return label ? <AgentWorking label={label} /> : null;
+              })()}
             </div>
-          </div>
+            </div>
+          </Fragment>
         ))}
       </div>
 
@@ -436,6 +565,19 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
             <button className="btn primary" onClick={() => void send()} disabled={!input.trim()}>
               发送
             </button>
+          )}
+        </div>
+        {/* 输入框下方：靠左的会话信息行（token 用量）。这一行始终占位，统计出现时不会顶动布局 */}
+        <div className="chat-footer-meta">
+          {(tokenUsage.input > 0 || tokenUsage.output > 0) && (
+            <span className="token-badge" title="本会话累计 token 用量（◎ 缓存命中 / ＋ 缓存写入）">
+              <span className="token-stat">↑{tokenUsage.input.toLocaleString()}</span>
+              <span className="token-stat">↓{tokenUsage.output.toLocaleString()}</span>
+              {tokenUsage.cached > 0 && <span className="token-stat">◎{tokenUsage.cached.toLocaleString()}</span>}
+              {tokenUsage.cacheCreation > 0 && (
+                <span className="token-stat">＋{tokenUsage.cacheCreation.toLocaleString()}</span>
+              )}
+            </span>
           )}
         </div>
       </footer>

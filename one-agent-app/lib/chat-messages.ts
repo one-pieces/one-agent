@@ -26,6 +26,8 @@ export interface UiMessage {
   content: string;
   toolCalls: UiToolCall[];
   streaming?: boolean;
+  /** 已被上下文压缩覆盖（原文仍在，模型看到的是摘要）→ 界面在其后画一条分隔提示 */
+  compacted?: true;
 }
 
 export const DENIED_TEXT = "已拒绝";
@@ -36,8 +38,22 @@ export function uid(): string {
 
 /** 工具结果 → 展示状态（"已拒绝" 文案标记审批被拒） */
 export function toolStatusFromResult(ok: boolean, output: unknown): ToolStatus {
-  if (!ok && String(output).includes(DENIED_TEXT)) return "denied";
+  if (!ok && carriesDeniedText(output)) return "denied";
   return ok ? "done" : "error";
+}
+
+/**
+ * 输出里是否带"已拒绝"标记。
+ * 工具结果是**对象**（如 `{ error: "已拒绝：危险操作未获批准" }`），直接 String()
+ * 会得到 "[object Object]" → 判定永远不成立，所以这里先序列化再匹配。
+ */
+function carriesDeniedText(output: unknown): boolean {
+  if (typeof output === "string") return output.includes(DENIED_TEXT);
+  try {
+    return (JSON.stringify(output) ?? "").includes(DENIED_TEXT);
+  } catch {
+    return String(output).includes(DENIED_TEXT);
+  }
 }
 
 /**
@@ -112,6 +128,7 @@ export function toUiMessages(messages: PersistedMessage[]): UiMessage[] {
       id: m.id,
       role: m.role as "user" | "assistant",
       content: m.content,
+      ...(m.compacted ? { compacted: true as const } : {}),
       toolCalls: (m.toolCalls ?? []).map((tc) => {
         const r = toolResults.get(tc.id);
         return {

@@ -43,7 +43,7 @@
   --ok: #2da44e;
   --warning: #b8860b;
   /* 亮色主题代码块：深色背景换浅色，避免继承的深色文字在深底上看不清 */
-  --code-bg: #eef0f4;
+  --code-bg: #e6e9f1; /* 与 --card-2(#eef0f4) 分开：亮色下二者原本完全同色，代码面板读起来像裸文本 */
   --code-inline-bg: rgba(0, 0, 0, 0.06);
   /* 代码高亮配色：geist 亮色版（同 streamdown 文档站亮色主题） */
   --shiki-color-text: #171717;
@@ -164,7 +164,7 @@ code {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--card);
+  /* 不铺底色：与消息区同用页面底，只靠右侧分隔线划分区域 */
   border-right: 1px solid var(--border);
 }
 
@@ -372,14 +372,18 @@ code {
   }
 }
 
+/* token 统计：纯文字（不套底色/边框/胶囊），跟在输入框下方；条目之间留间距便于区分 */
 .token-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 11px;
   color: var(--muted-foreground);
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px 10px;
   white-space: nowrap;
+}
+
+.token-stat {
+  font-variant-numeric: tabular-nums;
 }
 
 .error-banner {
@@ -447,6 +451,72 @@ code {
   color: #1b1e26;
 }
 
+/* agent 消息不加背景/边框/内边距：正文直接落在消息列上（像 Devin，只有用户消息带气泡）；
+   工具动作行与正文左对齐（见 .tool-calls 的 -9px 出血），展开区再缩进到该行的文本列 */
+.msg.assistant .bubble {
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 0;
+  /* 正文行距放宽一档（1.6 → 1.8）便于长回答阅读；代码块自带 12px/18px 行高，不受影响 */
+  line-height: 1.8;
+}
+
+/* 消息里的代码块：原先靠气泡底色(--card #171a23)拉开面差，agent 气泡去掉背景后
+   面板底(#0b0d13)与页面底(#0f1117)只有 1.03:1，轮廓全靠 1px 边框 → 补一个明确的面与边框
+   （工具展开面板在自己的卡底上仍是往下的深色，作用域互不影响） */
+.msg .bubble [data-streamdown="code-block"] {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--background));
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+/* 流式 loading 行：跟在消息内容末尾（等模型 / 正在执行工具），
+   代替原先「消息区只有一个闪烁方块」的观感；左沿与正文、工具动作行的图标列同一条线 */
+.agent-working {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agent-working-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--primary);
+  animation: tool-spin 1s linear infinite;
+}
+
+/* 已用时长：等宽数字（秒数变化时不抖），比文案再弱一档 */
+.agent-working-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+
+/* 压缩边界提示：早期对话（已压缩为摘要）与实时对话之间的分隔 */
+.history-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 750px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.history-divider::before,
+.history-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+}
+
 .cursor {
   color: var(--primary);
   animation: blink 1s steps(1) infinite;
@@ -456,26 +526,6 @@ code {
   50% {
     opacity: 0;
   }
-}
-
-.msg-delete {
-  background: transparent;
-  border: none;
-  color: var(--muted-foreground);
-  border-radius: 6px;
-  padding: 3px;
-  cursor: pointer;
-  opacity: 0;
-  align-self: flex-start;
-  transition: opacity 0.15s, color 0.15s;
-}
-
-.msg-content:hover .msg-delete {
-  opacity: 1;
-}
-
-.msg-delete:hover {
-  color: var(--destructive);
 }
 
 /* Markdown（Streamdown） */
@@ -651,79 +701,180 @@ code {
   margin: 12px 0;
 }
 
-/* 工具卡片 */
+/* ═══ 工具调用（对齐 Devin：一行一个动作，紧凑、低装饰、时间线感）═══ */
 .tool-calls {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   max-width: 100%;
+  /* 与消息正文左对齐：卡片盒整体左移 9px（卡片自身 1px 透明边框 + summary 8px 左内边距），
+     三角图标正好落在正文左沿；hover/展开的底色向两侧各溢出 9px，面色光学中心与正文列一致，
+     状态图标的右沿也就落在正文右沿（否则右侧会内缩 ~10px）。
+     上间距 8px（+ .msg-content 的 6px = 14px）：动作组离上文明显远于离自己的兄弟行（34.3px），
+     组的上沿才读得出来。 */
+  margin: 8px -9px 0 -9px;
+  max-width: calc(100% + 18px); /* 取消 max-width:100% 的夹取，让右侧也能出血 */
 }
+
+/* 注：原先这里有一条左侧时间线轨道。动作行改为与正文左对齐后，轨道会压在三角图标上，
+   没有位置了，故撤掉（需要的话可以放到消息列左侧的留白里，或改成行间连接段）。 */
 
 .tool-card {
-  background: var(--card-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   padding: 0;
   font-size: 12px;
-  overflow: hidden;
+  transition: background 0.12s, border-color 0.12s;
 }
 
-.tool-card summary {
+/* hover 是"预览"，展开是"选中"——两者底色区分开，否则状态不可辨 */
+.tool-card:hover {
+  background: color-mix(in srgb, var(--card-2) 55%, transparent);
+}
+
+.tool-card[open] {
+  background: var(--card-2);
+  border-color: var(--border);
+}
+
+.tool-card > summary {
   cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 6px;
+  padding: 4px 8px;
   list-style: none;
+  min-width: 0;
 }
 
-.tool-card summary::-webkit-details-marker {
+.tool-card > summary::-webkit-details-marker {
   display: none;
 }
 
-.tool-name {
-  font-weight: 500;
+.tool-chevron {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  color: var(--muted-foreground);
+  /* 15px 盒 × stroke 2.5 ≈ 1.56px 实际描边：放大后仍清晰（11px + stroke 2 时实测只有 0.9px，
+     是全行最糊的元素） */
+  stroke-width: 2.5;
+  transition: transform 0.15s;
 }
 
-.tool-status {
+.tool-card[open] > summary .tool-chevron {
+  transform: rotate(90deg);
+}
+
+.tool-glyph {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--muted-foreground);
+  /* 与 chevron/状态图标对齐线宽，避免图标列逐行"忽轻忽重"（实测墨迹密度差 3.4 倍） */
+  stroke-width: 2.25;
+}
+
+/* 工具名（等宽，作标识）+ 参数摘要（等宽，弱化）—— 读起来就是 `read src/app.ts`。
+   两者只靠颜色区分层级太薄，故工具名加一档字重、摘要降一档字号 */
+.tool-verb {
+  flex-shrink: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* 与消息正文同号（body 基准 14px）；展开区内的代码面板/小字标保持原来的紧凑档位 */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+.tool-target {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 状态：只有图标（无胶囊、无文字），颜色即语义。
+   13px + 默认 stroke-width:2 实测描边仅约 1px（纯色像素只有十几个），显得"没画完"，
+   故放大到 14px 并把线加粗到 2.5 */
+.tool-state {
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  border-radius: 999px;
-  padding: 1px 8px;
-  border: 1px solid var(--border);
+  justify-content: center;
+  width: 14px;
+  height: 14px;
 }
 
-.tool-running {
+.tool-state svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.5;
+}
+
+.tool-state-running {
   color: var(--warning);
 }
 
-.tool-done {
+.tool-state-running svg {
+  animation: tool-spin 1s linear infinite;
+}
+
+.tool-state-done {
   color: var(--ok);
 }
 
-.tool-error,
-.tool-denied {
+.tool-state-error,
+.tool-state-denied {
   color: var(--destructive);
 }
 
-.tool-card .label {
-  color: var(--muted-foreground);
-  font-size: 11px;
-  margin: 6px 0 2px;
-  padding: 0 10px;
+/* 亮色主题下 --ok / --warning 在卡底上不足 3:1（#2da44e 2.82 / #b8860b 2.85），
+   而状态只有图标这一个载体 → 亮色单独换深一档（4.45 / 4.86） */
+[data-theme="light"] .tool-state-done {
+  color: #1a7f37;
 }
 
-.tool-input,
-.tool-output {
-  padding: 0 10px 8px;
+[data-theme="light"] .tool-state-running {
+  color: #8a6100;
+}
+
+@keyframes tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 展开区：面板左沿与工具名首字同列（chevron 15 + 6 + glyph 14 + 6 + summary 内边距 8 = 49px，
+   箭头尺寸变了这里必须同步）；上间距 8px 让"标签属于它下面那块"，而不是贴住上一行 */
+.tool-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 8px 10px 49px;
+}
+
+/* 小字标：与代码正文左沿对齐（+ 面板 1px 边框 + 代码行 10px 内边距 = 11px） */
+.tool-label {
+  color: var(--muted-foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  padding-left: 11px;
+  margin-bottom: 4px;
 }
 
 .tool-denied-note {
   margin: 0;
-  color: var(--destructive);
+  /* 与自己的 OUTPUT 标签、INPUT 代码正文同列（否则和面板里的两套内容列打架） */
+  padding-left: 11px;
+  /* 纯 --destructive 在卡底上只有 4.27:1（11px 正文低于 AA 4.5:1）；
+     与前景色混合后暗色主题变亮红、亮色主题变深红，两个主题都能过线 */
+  color: color-mix(in srgb, var(--destructive) 78%, var(--foreground));
   font-size: 11px;
   line-height: 1.6;
 }
@@ -817,8 +968,22 @@ code {
   border-top: 1px solid var(--border);
   padding: 12px 16px 16px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center; /* 内层 750px 横向居中 */
+  gap: 6px;
   flex-shrink: 0;
+}
+
+/* 输入框下方的信息行（token 用量等）：与输入框同宽、内容靠左。
+   min-height 固定，统计从无到有时不会顶动输入框与消息区 */
+.chat-footer-meta {
+  width: 100%;
+  max-width: 750px;
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .chat-footer-inner {
@@ -2105,19 +2270,66 @@ h3 {
   transform: translateX(16px);
 }
 
-/* ═══ 工具调用里的代码块（入参/结果）：复用上面的 Streamdown 代码块，仅做卡片内的紧凑化 ═══ */
+/* ═══ 工具调用里的代码块（输入/输出）：比气泡里的更紧凑，贴合成一块面板 ═══ */
 .tool-code [data-streamdown="code-block"] {
   margin: 0;
+  /* 面板底(0b0d13) vs 展开卡底(1e2230) 只有 1.23:1，边界几乎全靠这 1px 边框 → 18% 混合后约 1.68:1 */
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
 }
 
 /* 长结果（最多 1800 字符）不占满整屏：限高来自 streamdown 的 codeBlockMaxHeight（内联 max-height），
    这里补上纵向滚动 —— streamdown 自带的 overflow-y-auto 是 tailwind 类名，本项目不生效 */
+/* 长行折行：代码块默认 `code { min-width: max-content }`（见上面的基础规则）会把 grid 撑到
+   最长行宽，于是 pre 的 pre-wrap 永不触发，只剩 body 的 overflow-x 在面板右沿硬裁一刀
+   （macOS overlay 滚动条默认不可见 → 读成"渲染坏了"）。工具面板里把 grid 收回容器宽度。
+   实测：4 逻辑行 → 6 视觉行、面板随之长高；短行面板高度完全不变（零回归）。 */
+.tool-code [data-streamdown="code-block"] code {
+  min-width: 0;
+  width: 100%;
+}
+
 .tool-code [data-streamdown="code-block-body"] {
   overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* 字号/行高降一档（13px/20px → 12px/18px），与动作行的等宽字号同族；行内边距保持 10px
+   （与 .tool-label 的 padding-left:11px 对齐关系已实测为 0.00px，不要动） */
+.tool-code [data-streamdown="code-block"] pre {
+  font-size: 12px;
+  line-height: 18px;
+  /* 长行不硬裁：面板里没有省略号、macOS 的 overlay 滚动条又默认不可见，
+     超长行（如一条长 JSON / 长路径）会被读成"渲染坏了" */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tool-code [data-streamdown="code-block"] code > span {
+  min-height: 18px;
+  padding: 0 10px;
+}
+
+/* 复制按钮同步缩小（36 → 26），否则在小面板里会盖住内容 */
+.tool-code [data-streamdown="code-block"] button {
+  width: 26px;
+  height: 26px;
+}
+
+.tool-code [data-streamdown="code-block"] button svg {
+  width: 12px;
+  height: 12px;
 }
 
 .tool-code-error [data-streamdown="code-block"] {
   border-color: var(--destructive);
+}
+
+/* 失败面板里的绿系 token 与"红=失败"打架（读 JSON 时满屏绿字符串），
+   统一收敛成正文色：错误信息靠红边框 + 中性正文表达 */
+.tool-code-error {
+  --shiki-token-string: var(--shiki-color-text);
+  --shiki-token-string-expression: var(--shiki-color-text);
+  --shiki-token-link: var(--shiki-color-text);
 }
 
 .tool-code-note {
