@@ -26,26 +26,54 @@ export function trimMessages(messages: LLMMessage[], config: AgentConfig): void 
   messages.splice(0, messages.length, ...system, ...rest);
 }
 
+/** 摘要消息前缀（构建上下文时插在 system 之后） */
+export const SUMMARY_PREFIX = "[历史对话摘要]";
+
 /**
- * Compaction：把「system 之后、最近 keepRecent 条之前」的历史消息
- * 用模型压缩成一条摘要（system 角色），替换原文。
- * 成功返回 true；摘要失败/无足够内容返回 false（调用方跳过本次压缩）。
+ * 构建**发给模型**的上下文视图：
+ *   开头 system（instructions / 规划规程）+ 历史摘要（来自 meta.compaction.summaries）+ 未被压缩覆盖的消息
+ *
+ * 与 messages 的区别：会话记录（messages）保留全部原文（用户在消息列表里能看到完整对话），
+ * 压缩只影响这里 —— 被摘要覆盖的消息以 `compacted` 标记跳过，由摘要代表。
+ */
+export function buildContextMessages(messages: LLMMessage[], summaries: readonly string[] = []): LLMMessage[] {
+  const out: LLMMessage[] = [];
+  let i = 0;
+  // 开头的 system 逐条保留（instructions / 规划规程；含旧版本留下的摘要消息）
+  while (i < messages.length && messages[i]!.role === "system") out.push(messages[i++]!);
+  for (const summary of summaries) out.push({ role: "system", content: `${SUMMARY_PREFIX}\n${summary}` });
+  for (; i < messages.length; i++) {
+    const m = messages[i]!;
+    if (!m.compacted) out.push(m);
+  }
+  return out;
+}
+
+/**
+ * Compaction：把「system 之后、最近 keepRecent 条之前」的历史消息交给模型压缩成一段摘要。
+ *
+ * **不删除原文**：只在被覆盖的消息上打 `compacted` 标记，摘要返回给调用方存进
+ * `meta.compaction.summaries`，构建请求时由 buildContextMessages 用摘要替换那一段。
+ * 这样长对话的早期记录仍然留在会话里（前端可见），但送进模型窗口的上下文是有界的。
+ *
+ * 返回 null：摘要失败 / 可压缩内容不足（调用方跳过本次压缩，消息数组不被修改）。
  */
 export async function compactMessages(opts: {
   provider: LanguageProvider;
   modelConfig: ProviderConfig;
   messages: LLMMessage[];
   keepRecent?: number;
-}): Promise<boolean> {
+}): Promise<{ summary: string } | null> {
   const { provider, modelConfig, messages, keepRecent = 6 } = opts;
 
   // 开头连续的 system 保留（instructions / 已有摘要）
   let prefix = 0;
   while (prefix < messages.length && messages[prefix]!.role === "system") prefix++;
   const cutEnd = Math.max(prefix, messages.length - keepRecent);
-  // 派生消息（如压缩后注入的 todo 快照）不参与历史摘要：它们本身就是压缩的产物
-  const toSummarize = messages.slice(prefix, cutEnd).filter((m) => !m.synthetic);
-  if (toSummarize.length < 3) return false;
+  // 派生消息（如压缩后注入的 todo 快照）不参与历史摘要：它们本身就是压缩的产物；
+  // 已被上一轮摘要覆盖的部分也不再重复摘要
+  const toSummarize = messages.slice(prefix, cutEnd).filter((m) => !m.synthetic && !m.compacted);
+  if (toSummarize.length < 3) return null;
 
   const summaryPrompt: LLMMessage = {
     role: "system",
@@ -54,17 +82,14 @@ export async function compactMessages(opts: {
   };
   const text = await collectText(provider.chat({ messages: [summaryPrompt, ...toSummarize], config: modelConfig }));
   const trimmed = text.trim();
-  if (!trimmed) return false;
+  if (!trimmed) return null;
 
-  // 确认摘要可用后才改写历史：整段替换为摘要，并清掉范围内的派生消息
-  messages.splice(prefix, cutEnd - prefix, {
-    role: "system",
-    content: `[历史对话摘要]\n${trimmed}`,
-  });
+  // 确认摘要可用后才打标记（原文保留）
+  for (let i = prefix; i < cutEnd; i++) messages[i]!.compacted = true;
   // 尾部若残留旧的派生消息（压缩前位于 keepRecent 窗口内）也一并丢弃：
   // AgentLoop 会在压缩成功后按最新状态重新注入（见 planning/todo 的 P1-c）
   dropSyntheticMessages(messages, prefix + 1);
-  return true;
+  return { summary: trimmed };
 }
 
 /** 移除 index >= from 的全部合成消息（派生数据，重写历史时一并丢弃）；返回移除条数 */

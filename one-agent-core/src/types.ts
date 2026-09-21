@@ -21,6 +21,12 @@ export interface LLMMessage {
    * 上下文压缩后重新注入的任务清单。用途：压缩时丢弃旧的、前端隐藏、不参与历史摘要。
    */
   synthetic?: SyntheticMessageKind;
+  /**
+   * 已被上下文压缩覆盖（内容已由 meta.compaction.summaries 里的摘要代表）。
+   * 原文**仍然保留在会话记录里**（前端能看到完整对话），只是构建模型上下文时跳过，
+   * 由 buildContextMessages 换成摘要 —— 见 memory/index.ts。
+   */
+  compacted?: true;
 }
 
 /** 合成消息类型（内核生成，不代表真实对话内容）：压缩后的上下文快照 / 空响应重试催促 */

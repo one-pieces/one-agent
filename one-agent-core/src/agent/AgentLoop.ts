@@ -1,6 +1,6 @@
 import type { Agent } from "./Agent.ts";
 import type { AgentConfig, LLMMessage, ProviderConfig, StreamChunk, ToolCall, ToolContext, ToolResult, ToolSpec } from "../types.ts";
-import { compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.ts";
+import { buildContextMessages, compactMessages, estimateMessagesTokens, trimMessages } from "../memory/index.ts";
 import { buildSystemPrompt } from "./planning.ts";
 import { findLatestPlan } from "../plan/planFiles.ts";
 import { scheduleToolBatch } from "./toolBatchScheduler.ts";
@@ -25,6 +25,11 @@ export interface RunOptions {
    * 不提供则危险工具直接执行（默认放行）。
    */
   onApproval?: (call: ToolCall, tool: ToolSpec) => boolean | Promise<boolean>;
+  /**
+   * 上下文压缩的摘要持有者（由 Agent.run 从 meta.compaction.summaries 载入并回写）。
+   * 摘要属于「发给模型的上下文」，不属于会话记录 —— 原文消息不会被删除。
+   */
+  compaction?: { summaries: string[] };
 }
 
 /**
@@ -63,21 +68,33 @@ export async function* agentLoop(
   const usageTotal = { input: 0, output: 0, cached: 0, cacheCreation: 0 };
   let turnUsage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, cacheCreationTokens: 0 };
 
+  // 历史摘要（压缩产物的载体）：只影响发给模型的上下文，会话记录里的原文不动
+  const compaction = opts.compaction ?? { summaries: [] };
+
   for (let i = 0; i < maxIter; i++) {
-    // 记忆：compaction 触发检查（基于估算 token 数；首轮也有数据时同样生效）
+    // 记忆：compaction 触发检查（基于「发给模型的上下文视图」估算 token；首轮也有数据时同样生效）
     if (config.memory?.strategy === "compaction") {
       const windowTokens = config.memory.contextWindowTokens ?? 32_000;
       const threshold = Math.max(100, (config.memory.thresholdPercent ?? 0.75) * windowTokens);
-      if (estimateMessagesTokens(messages) > threshold) {
-        const compacted = await compactMessages({ provider: agent.provider, modelConfig, messages });
+      if (estimateMessagesTokens(buildContextMessages(messages, compaction.summaries)) > threshold) {
+        const result = await compactMessages({ provider: agent.provider, modelConfig, messages });
         // P1-c：压缩成功后把「任务清单（未完成项）+ 方案文档路径」重新注入 —— 否则模型会忘记进度、重做已完成的工作。
         // 以 user 角色（不改 system，保住 prompt cache 前缀）+ 合成标记（压缩时丢弃、前端隐藏）
-        if (compacted) await injectContextSnapshot(agent, messages, opts);
+        if (result) {
+          compaction.summaries.push(result.summary);
+          await injectContextSnapshot(agent, messages, opts);
+        }
       }
     }
 
     const tools = resolveEnabledTools(agent, config, opts.toolOverrides);
-    const stream = agent.provider.chat({ messages, tools, config: modelConfig, signal: opts.signal });
+    // 请求用的是压缩后的上下文视图（原文被标记 compacted 的消息由摘要代表）
+    const stream = agent.provider.chat({
+      messages: buildContextMessages(messages, compaction.summaries),
+      tools,
+      config: modelConfig,
+      signal: opts.signal,
+    });
 
     let text = "";
     const toolCalls: ToolCall[] = [];

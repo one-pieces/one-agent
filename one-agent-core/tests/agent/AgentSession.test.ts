@@ -129,15 +129,44 @@ describe("Agent 会话集成", () => {
       content: `这是第 ${i} 条比较长的消息内容，用于把上下文推到阈值以上`,
     }));
 
+    const seen: LLMMessage[][] = [];
+    let call = 0;
+    const provider2 = new ScriptedProvider(
+      [
+        () => [{ type: "text", delta: "用户问了十个问题。" }, { type: "usage", inputTokens: 5, outputTokens: 5 }, { type: "done" }],
+        () => [{ type: "text", delta: "最终回答" }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }],
+      ],
+      (opts) => {
+        call++;
+        if (call === 2) seen.push(opts.messages.map((m) => ({ ...m })));
+      },
+    );
+    const agent2 = makeAgent(provider2, undefined, {
+      memory: { strategy: "compaction", contextWindowTokens: 100, thresholdPercent: 0.5 },
+      maxIterations: 2,
+    });
+
     const out: StreamChunk[] = [];
-    for await (const c of agent.run(longHistory, { sessionId: "t" })) out.push(c);
+    for await (const c of agent2.run(longHistory, { sessionId: "t" })) out.push(c);
 
     // 摘要调用(1) + 正式回答(1) = 2 次模型调用
-    expect(provider.calls).toBe(2);
+    expect(provider2.calls).toBe(2);
     const text = out.filter((c) => c.type === "text").map((c) => (c as Extract<StreamChunk, { type: "text" }>).delta).join("");
     expect(text).toBe("最终回答");
-    // 历史中出现摘要
-    const saved = await agent.getHistory("t");
-    expect(saved.some((m) => m.content.includes("[历史对话摘要]"))).toBe(true);
+
+    // ① 发给模型的上下文里有摘要、且不再带被覆盖的早期消息（上下文有界）
+    const secondCall = seen[0]!;
+    expect(secondCall.some((m) => m.content.includes("[历史对话摘要]"))).toBe(true);
+    expect(secondCall.filter((m) => m.role !== "system").length).toBeLessThan(longHistory.length);
+
+    // ② 会话记录里原文一条不少（这是「对话记录不会消失」的核心断言）
+    const saved = await agent2.getHistory("t");
+    const contents = saved.map((m) => m.content);
+    for (const m of longHistory) expect(contents).toContain(m.content);
+    // ③ 摘要落在 meta.compaction.summaries，而不是覆盖历史
+    const session = await agent2.sessionStore.getSession("t");
+    const summaries = (session!.meta as { compaction?: { summaries?: string[] } }).compaction?.summaries;
+    expect(summaries).toEqual(["用户问了十个问题。"]);
+    expect(saved.some((m) => m.content.includes("[历史对话摘要]"))).toBe(false);
   });
 });

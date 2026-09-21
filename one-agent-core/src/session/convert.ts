@@ -10,6 +10,7 @@ export function toLLMMessage(m: Message): LLMMessage {
     ...(m.toolCalls ? { toolCalls: m.toolCalls } : {}),
     ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
     ...(m.synthetic ? { synthetic: m.synthetic } : {}),
+    ...(m.compacted ? { compacted: true } : {}),
   };
 }
 
@@ -38,6 +39,7 @@ export function toMessageWithStableId(m: LLMMessage, existing: Message[], now: s
     ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
     ...(m.usage ? { usage: m.usage } : {}),
     ...(m.synthetic ? { synthetic: m.synthetic } : {}),
+    ...(m.compacted ? { compacted: true } : {}),
     createdAt: match?.createdAt ?? now,
   };
 }

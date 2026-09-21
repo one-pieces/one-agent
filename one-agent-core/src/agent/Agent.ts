@@ -87,7 +87,16 @@ export class Agent {
           ? [...history.map(toLLMMessage), { role: "user", content: input }]
           : input.map((m) => ({ ...m }));
 
-      const loop = agentLoop(agent, messages, { ...opts, sessionId });
+      // 历史摘要（压缩产物）：从会话 meta 载入，轮内是权威副本，收尾回写；
+      // 注意它只影响发给模型的上下文，会话记录里的原文消息不会被删除
+      const rawSummaries = (existing?.meta as { compaction?: { summaries?: unknown } } | undefined)?.compaction
+        ?.summaries;
+      const metaSummaries = Array.isArray(rawSummaries)
+        ? rawSummaries.filter((s): s is string => typeof s === "string")
+        : [];
+      const compaction = { summaries: [...metaSummaries] };
+
+      const loop = agentLoop(agent, messages, { ...opts, sessionId, compaction });
       // 捕获本轮整轮用量（usage chunk 由 agentLoop 在 done 前聚合发出一次）→ 累加到会话 meta
       let turnUsage: TokenUsage | undefined;
       for await (const chunk of loop) {
@@ -119,6 +128,9 @@ export class Agent {
         const firstUser = messages.find((m) => m.role === "user");
         if (firstUser?.content.trim()) existingMeta.title = firstUser.content.trim().slice(0, 60);
       }
+      // 历史摘要回写（轮内可能有新的压缩）
+      if (compaction.summaries.length > 0) existingMeta.compaction = { summaries: compaction.summaries };
+
       // token 用量：会话级累计持久化（刷新后前端可恢复统计；窗口裁剪/压缩丢消息也不丢总量）
       if (turnUsage) {
         const prev = (existingMeta.tokenUsage ?? {}) as Partial<TokenUsage>;

@@ -12,6 +12,8 @@ export interface Message {
   usage?: TokenUsage;
   /** 合成消息标记（如压缩后注入的 todo 快照）：前端隐藏、压缩时丢弃 */
   synthetic?: SyntheticMessageKind;
+  /** 已被上下文压缩覆盖（摘要见 meta.compaction.summaries）；原文保留，前端照常显示 */
+  compacted?: true;
 }
 
 /** 会话（持久化单位） */
