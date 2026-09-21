@@ -4,7 +4,10 @@
 聊天页方案面板渲染、todo 工具调用、合成消息不渲染成用户消息。
 
 前置：
-  1. 本地 Ollama 跑着 qwen2.5-7b-64k:latest（`ollama list` 能看到）；
+  1. 已配置好 deepseek 的 agent（默认读 `deepseek-agent` 的 model 配置：provider/baseUrl/
+     modelId/apiKey）——脚本运行时从 app 里取，密钥不落仓库、不打印；
+     也可用环境变量覆盖：SMOKE_MODEL_SOURCE / SMOKE_MODEL_ID / SMOKE_MODEL_BASE_URL；
+     **不要用本地 ollama 跑测试**（弱模型的空响应/幻觉会把 UI 问题误判成后端问题）；
   2. dev server 已启动：cd one-agent-app && pnpm dev（默认 http://localhost:3000）；
   3. 已存在 agent-smoke（`planning.mode=prompt`、启用 todo/plan/read/ls/tree/write；
      脚本会在缺失时用 API 自动创建）；
@@ -34,8 +37,34 @@ def _workspace_dir():
     return str(_p.Path(__file__).resolve().parent.parent / "one-agent-app" / "data" / "workspace")
 
 
+def resolve_model():
+    """冒烟用模型：默认取 SMOKE_MODEL_SOURCE（默认 deepseek-agent）的 model 配置。
+
+    密钥只在运行时从 app 读出来直接用于建 agent，不写进仓库、不打印。
+    """
+    import json as _json
+    import os as _os
+    import urllib.request as _u
+
+    src = _os.environ.get("SMOKE_MODEL_SOURCE", "deepseek-agent")
+    req = _u.Request(f"{BASE}/api/agents/{src}")
+    with _u.urlopen(req, timeout=30) as resp:
+        ref = _json.loads(resp.read())["model"]
+    model = {
+        "provider": ref.get("provider", "openai-compatible"),
+        "baseUrl": _os.environ.get("SMOKE_MODEL_BASE_URL", ref["baseUrl"]),
+        "modelId": _os.environ.get("SMOKE_MODEL_ID", ref["modelId"]),
+        "apiKey": ref["apiKey"],
+        "temperature": 0.2,
+    }
+    if not model["apiKey"]:
+        raise SystemExit(f"参考 agent {src} 没有 apiKey，无法建冒烟 agent")
+    print(f"冒烟模型: {model['modelId']} @ {model['baseUrl']}（来自 {src}）")
+    return model
+
+
 def ensure_agent_and_session():
-    """保证冒烟用的 agent 与会话存在（agent 已存在则复用），返回 sessionId。"""
+    """保证冒烟用的 agent 与会话存在（agent 已存在则复用 + 同步模型配置），返回 sessionId。"""
     import json as _json
     import urllib.request as _u
 
@@ -45,29 +74,25 @@ def ensure_agent_and_session():
         with _u.urlopen(req, timeout=30) as resp:
             return _json.loads(resp.read())
 
+    model = resolve_model()
+    cfg = {
+        "id": "agent-smoke",
+        "name": "冒烟测试助手",
+        "instructions": "你是测试助手。需要时使用工具，并简洁总结结果。",
+        "model": model,
+        "tools": [{"name": n, "enabled": True} for n in ["todo", "plan", "read", "ls", "tree", "write"]],
+        "maxIterations": 8,
+        "memory": {"strategy": "compaction", "contextWindowTokens": 32000, "thresholdPercent": 0.75},
+        "planning": {"mode": "prompt"},
+    }
     try:
-        call("/api/agents/agent-smoke")
+        existing = call("/api/agents/agent-smoke")
+        # 已存在：只同步模型配置（模型换了也能直接跑，不必删 agent）
+        if existing.get("model", {}).get("modelId") != model["modelId"]:
+            print(f"  已存在的 agent-smoke 模型为 {existing['model'].get('modelId')} → 同步为 {model['modelId']}")
+            call("/api/agents/agent-smoke", "PATCH", {**existing, "model": model})
     except Exception:  # noqa: BLE001 —— 不存在则创建
-        call(
-            "/api/agents",
-            "POST",
-            {
-                "id": "agent-smoke",
-                "name": "冒烟测试助手",
-                "instructions": "你是测试助手。需要时使用工具，并简洁总结结果。",
-                "model": {
-                    "provider": "openai-compatible",
-                    "baseUrl": "http://localhost:11434/v1",
-                    "modelId": "qwen2.5-7b-64k:latest",
-                    "apiKey": "not-needed",
-                    "temperature": 0.2,
-                },
-                "tools": [{"name": n, "enabled": True} for n in ["todo", "plan", "read", "ls", "tree", "write"]],
-                "maxIterations": 8,
-                "memory": {"strategy": "compaction", "contextWindowTokens": 32000, "thresholdPercent": 0.75},
-                "planning": {"mode": "prompt"},
-            },
-        )
+        call("/api/agents", "POST", cfg)
     return call("/api/sessions", "POST", {"agentId": "agent-smoke"})["id"]
 
 
