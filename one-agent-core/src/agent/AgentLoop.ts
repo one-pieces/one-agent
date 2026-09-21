@@ -4,6 +4,7 @@ import { buildContextMessages, compactMessages, estimateMessagesTokens, trimMess
 import { buildSystemPrompt } from "./planning.ts";
 import { findLatestPlan } from "../plan/planFiles.ts";
 import { scheduleToolBatch } from "./toolBatchScheduler.ts";
+import { createToolGuardrails, type GuardrailDecision } from "./toolGuardrails.ts";
 
 export interface RunOptions {
   /** 每轮会话/请求级模型覆盖 → 动态切换模型的核心入口 */
@@ -47,6 +48,8 @@ export async function* agentLoop(
 ): AsyncIterable<StreamChunk> {
   const config = agent.getConfig();
   const maxIter = config.maxIterations ?? 10;
+  // 工具调用守卫：一轮一个控制器（纯观察 + 决策，无副作用），配置来自 config.toolGuardrails
+  const guardrails = createToolGuardrails(config.toolGuardrails);
 
   // 注入 system 指令（messages 里还没有 system 时），保证 persona/指令/规划规程始终生效
   const systemContent = buildSystemPrompt(config);
@@ -203,9 +206,28 @@ export async function* agentLoop(
 
     const outcomes = new Array<ToolOutcome | undefined>(toolCalls.length);
     const indexOf = new Map<ToolCall, number>(toolCalls.map((tc, i) => [tc, i]));
+
+    // 工具调用守卫（端口自 Hermes tool_guardrails）：执行前判定是否拦下这次调用。
+    // 拦下 = 不执行，合成 ok:false 结果把原因交给模型（避免它沿同一条失败路径反复撞）。
+    const blocked = new Map<ToolCall, GuardrailDecision>();
+    let lastBlock: GuardrailDecision | null = null;
+    guardrails.beginBatch();
+    for (const tc of toolCalls) {
+      const decision = guardrails.beforeCall(tc.name, tc.input);
+      if (decision) {
+        blocked.set(tc, decision);
+        lastBlock = decision;
+      }
+    }
+
     const runToolCall = async (tc: ToolCall): Promise<void> => {
       const index = indexOf.get(tc);
       if (index === undefined) return;
+      const decision = blocked.get(tc);
+      if (decision) {
+        outcomes[index] = guardrailOutcome(tc, decision);
+        return;
+      }
       outcomes[index] = await runSingleToolCall(agent, toolCtx, tc, opts);
     };
 
@@ -218,6 +240,44 @@ export async function* agentLoop(
       if (!outcome) continue;
       yield outcome.result;
       messages.push(outcome.message);
+    }
+
+    // 执行后观察（按原始调用顺序，保证并行段内计数稳定）：需要时注入引导文本。
+    // 引导以合成消息追加（前端隐藏、压缩时丢弃），模型在下一轮看到「别重试」。
+    const guidances: string[] = [];
+    let haltReason: string | null = null;
+    for (let index = 0; index < toolCalls.length; index++) {
+      const tc = toolCalls[index]!;
+      if (blocked.has(tc)) continue; // 被拦下的不参与"结果"统计（它没有结果）
+      const outcome = outcomes[index];
+      if (!outcome) continue;
+      const result = outcome.result as Extract<StreamChunk, { type: "tool_result" }>;
+      const decision = guardrails.afterCall(tc.name, tc.input, result.output, result.ok);
+      if (!decision) continue;
+      if (decision.action === "halt") haltReason = haltReason ?? decision.message;
+      else guidances.push(decision.message);
+    }
+    if (guidances.length > 0) {
+      messages.push({
+        role: "user",
+        content: `[系统] ${guidances.join("\n")}`,
+        synthetic: "guardrailGuidance",
+      });
+    }
+    if (haltReason === null && guardrails.shouldHalt) {
+      haltReason = lastBlock?.message ?? "本轮重复无效调用过多，已停止。";
+    }
+    if (haltReason !== null) {
+      yield { type: "text", delta: `\n\n[已停止] ${haltReason}` };
+      yield {
+        type: "usage",
+        inputTokens: usageTotal.input,
+        outputTokens: usageTotal.output,
+        cachedTokens: usageTotal.cached,
+        cacheCreationTokens: usageTotal.cacheCreation,
+      };
+      yield { type: "done" };
+      return;
     }
 
     // 记忆：窗口裁剪（window 策略）
@@ -315,5 +375,18 @@ function failureOutcome(tc: ToolCall, reason: string): ToolOutcome {
   return {
     result: { type: "tool_result", id: tc.id, ok: false, output: reason },
     message: { role: "tool", content: JSON.stringify({ error: reason }), toolCallId: tc.id },
+  };
+}
+
+/**
+ * 守卫拦下某次调用时的合成结果：工具**没有执行**，把拦截原因交给模型。
+ * output 里带 `guardrail` 标记 → 前端工具卡片能看到"被守卫拦下"而不是普通失败，
+ * 也便于日后按决策码统计「哪类误用最多」。
+ */
+function guardrailOutcome(tc: ToolCall, decision: { code: string; count: number; message: string }): ToolOutcome {
+  const output = { error: decision.message, guardrail: { code: decision.code, count: decision.count } };
+  return {
+    result: { type: "tool_result", id: tc.id, ok: false, output },
+    message: { role: "tool", content: JSON.stringify(output), toolCallId: tc.id },
   };
 }

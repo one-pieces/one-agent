@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import {
   AlertCircleIcon,
   ArrowDownIcon,
+  BanIcon,
   CheckIcon,
   ChevronRightIcon,
   FileDiffIcon,
@@ -29,6 +30,7 @@ import { codePlugin } from "@/lib/code-theme";
 import {
   applyChunk,
   toUiMessages,
+  toolErrorText,
   uid,
   type ToolStatus,
   type UiMessage,
@@ -254,6 +256,7 @@ const toolStatusMeta: Record<ToolStatus, { label: string; icon: typeof WrenchIco
   done: { label: "完成", icon: CheckIcon },
   error: { label: "失败", icon: XIcon },
   denied: { label: "已拒绝", icon: ShieldAlertIcon },
+  blocked: { label: "被守卫拦下（未执行）", icon: BanIcon },
 };
 
 function ToolState({ status }: { status: ToolStatus }) {
@@ -513,6 +516,13 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
                               {tc.status === "denied" ? (
                                 <p className="tool-denied-note">
                                   危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）
+                                </p>
+                              ) : tc.status === "blocked" ? (
+                                /* 被工具调用守卫拦下：工具没有执行，显示原因而不是一坨 JSON */
+                                <p className="tool-guardrail-note">
+                                  <ShieldAlertIcon size={12} aria-hidden />
+                                  <span>{toolErrorText(tc.output)}</span>
+                                  {tc.guardrail && <code>{`${tc.guardrail.code} ×${tc.guardrail.count}`}</code>}
                                 </p>
                               ) : (
                                 <ToolContent value={tc.output} error={tc.status === "error"} name={tc.name} kind="output" />

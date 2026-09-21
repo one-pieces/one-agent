@@ -30,7 +30,7 @@ export interface LLMMessage {
 }
 
 /** 合成消息类型（内核生成，不代表真实对话内容）：压缩后的上下文快照 / 空响应重试催促 */
-export type SyntheticMessageKind = "contextSnapshot" | "emptyRetryNudge";
+export type SyntheticMessageKind = "contextSnapshot" | "emptyRetryNudge" | "guardrailGuidance";
 
 /** token 用量（usage chunk / 消息级 / 会话级累计共用） */
 export interface TokenUsage {
@@ -145,6 +145,26 @@ export interface AgentConfig {
   planning?: {
     mode: "off" | "prompt";
     guidance?: string;
+  };
+  /**
+   * 工具调用守卫（port of Hermes tool_guardrails）：识别无效重试（同参数同结果重复、
+   * 沿同一条失败路径反复撞、A,B,A,B 周期重放、搜索预算超限）并注入引导 / 拦下调用 / 停轮。
+   * 不配置 = 用默认值且开启；enabled:false 关闭。
+   */
+  toolGuardrails?: {
+    enabled?: boolean;
+    /** 同参数同结果连续第几次开始提示（默认 2） */
+    warnAfter?: number;
+    /** 连续第几次后拦下、不再执行（默认 3） */
+    blockAfter?: number;
+    /** 本轮累计拦下多少次后停轮（默认 3） */
+    haltAfterBlocks?: number;
+    /** 每轮 web_search 上限（默认 50） */
+    maxWebSearches?: number;
+    /** 只读工具表（覆盖默认：read/grep/find/ls/tree/web_search/knowledge_search） */
+    idempotentTools?: string[];
+    /** 失败容忍工具表（覆盖默认：bash） */
+    failureTolerantTools?: string[];
   };
   /**
    * 空响应重试次数（默认 2）：模型既没输出文本、也没发起工具调用时，

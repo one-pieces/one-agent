@@ -69,7 +69,7 @@
 
 - 迭代：Hermes 500 轮 + 预算耗尽 grace call + 阶段化 pipeline；one-agent `for (i < maxIterations)` 默认 10 + 收尾提示。
 - 并行：Hermes **路径重叠感知 planner**（见 §5，重点）；one-agent 无条件 `Promise.all`。
-- 护栏：空响应守卫 ✅（已实现，`AgentConfig.emptyResponseRetries`）/ 复读守卫 / 停滞守卫 / 截断处理；后三者 one-agent 仍无。
+- 护栏：空响应守卫 ✅（`AgentConfig.emptyResponseRetries`）/ 工具调用守卫 ✅（`AgentConfig.toolGuardrails`，见 docs/tool-guardrails-design.md）/ 复读守卫 / 截断处理；后两者 one-agent 仍无。
 - 错误：28 类分类 → retry / rotate / compress / fallback + 抖动退避 + `Retry-After`；one-agent provider 直接 `yield error` 并终止轮次。
 - Provider 生态：39 插件 + fallback chain + 凭据池 + 模型别名/窗口目录 + reasoning effort clamp；one-agent 2 provider、单 key、无 fallback。
 

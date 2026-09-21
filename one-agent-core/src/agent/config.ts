@@ -34,6 +34,17 @@ export const agentConfigSchema = z.object({
     })
     .optional(),
   emptyResponseRetries: z.number().int().min(0).max(5).optional(),
+  toolGuardrails: z
+    .object({
+      enabled: z.boolean().optional(),
+      warnAfter: z.number().int().min(1).max(10).optional(),
+      blockAfter: z.number().int().min(1).max(10).optional(),
+      haltAfterBlocks: z.number().int().min(1).max(10).optional(),
+      maxWebSearches: z.number().int().min(1).max(1000).optional(),
+      idempotentTools: z.array(z.string()).optional(),
+      failureTolerantTools: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 /** 校验并返回规范化配置；非法配置直接抛错（编程/配置错误） */

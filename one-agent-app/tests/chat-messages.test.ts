@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { applyChunk, iterationFinished, toolStatusFromResult, toUiMessages, type UiMessage } from "../lib/chat-messages";
+import {
+  applyChunk,
+  guardrailOf,
+  iterationFinished,
+  toolErrorText,
+  toolStatusFromResult,
+  toUiMessages,
+  type UiMessage,
+} from "../lib/chat-messages";
 import type { Message as PersistedMessage, StreamChunk } from "@one-agent/core";
 
 /** 模拟内核 SSE 事件序列：文本 → 工具卡片 → 结果 → 下一轮文本 */
@@ -161,6 +169,10 @@ describe("toolStatusFromResult（工具卡片状态判定）", () => {
     expect(toolStatusFromResult(false, { error: "文件不存在" })).toBe("error");
   });
 
+  it("被守卫拦下 → blocked（与普通失败区分）", () => {
+    expect(toolStatusFromResult(false, { guardrail: { code: "duplicate_same_batch", count: 1 } })).toBe("blocked");
+  });
+
   it("字符串输出带「已拒绝」→ denied", () => {
     expect(toolStatusFromResult(false, "已拒绝：危险操作未获批准")).toBe("denied");
   });
@@ -174,5 +186,46 @@ describe("toolStatusFromResult（工具卡片状态判定）", () => {
 
   it("对象里恰好提到「已拒绝」但 ok=true → 仍算成功", () => {
     expect(toolStatusFromResult(true, { text: "已拒绝的记录有 3 条" })).toBe("done");
+  });
+});
+
+describe("工具调用守卫在 UI 侧的呈现（guardrailOf / toolErrorText）", () => {
+  const blocked = { error: "read 已连续 3 次以相同参数失败…", guardrail: { code: "repeated_exact_failure", count: 3 } };
+
+  it("对象结果里能取出守卫标记", () => {
+    expect(guardrailOf(blocked)).toEqual({ code: "repeated_exact_failure", count: 3 });
+  });
+
+  it("历史回放的 JSON 字符串结果也能取出", () => {
+    expect(guardrailOf(JSON.stringify(blocked))).toEqual({ code: "repeated_exact_failure", count: 3 });
+  });
+
+  it("普通结果没有守卫标记", () => {
+    expect(guardrailOf({ content: "hello" })).toBeUndefined();
+    expect(guardrailOf("just text")).toBeUndefined();
+    expect(guardrailOf(null)).toBeUndefined();
+  });
+
+  it("错误文本优先取 error 字段，非 JSON 字符串原样返回", () => {
+    expect(toolErrorText(blocked)).toContain("已连续 3 次");
+    expect(toolErrorText('{"error":"boom"}')).toBe("boom");
+    expect(toolErrorText("plain failure")).toBe("plain failure");
+  });
+
+  it("实时链路：被拦下的 tool_result 在 UI 上带 guardrail 标记", () => {
+    const msgs = applyChunk(withPlaceholder(), { type: "tool_call", id: "c1", name: "read", input: { path: "nope" } });
+    const after = applyChunk(msgs, { type: "tool_result", id: "c1", ok: false, output: blocked });
+    const tc = after.at(-1)!.toolCalls[0]!;
+    expect(tc.guardrail).toEqual({ code: "repeated_exact_failure", count: 3 });
+    expect(tc.status).toBe("blocked");
+  });
+
+  it("历史链路：落库的守卫结果回放时也带标记", () => {
+    const persisted: PersistedMessage[] = [
+      { id: "a1", role: "assistant", content: "", createdAt: "t", toolCalls: [{ id: "c1", name: "read", input: {} }] },
+      { id: "t1", role: "tool", content: JSON.stringify(blocked), toolCallId: "c1", createdAt: "t" },
+    ];
+    const ui = toUiMessages(persisted);
+    expect(ui[0]!.toolCalls[0]!.guardrail).toEqual({ code: "repeated_exact_failure", count: 3 });
   });
 });

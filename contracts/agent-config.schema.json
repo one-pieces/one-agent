@@ -4,45 +4,100 @@
   "title": "AgentConfig",
   "description": "Agent 配置（语言无关契约 v0.1）。TS 侧 zod 生成/消费，Python 侧 pydantic 消费。动态配置的一等数据。",
   "type": "object",
-  "required": ["id", "name", "instructions", "model", "tools"],
+  "required": [
+    "id",
+    "name",
+    "instructions",
+    "model",
+    "tools"
+  ],
   "properties": {
-    "id": { "type": "string", "minLength": 1 },
-    "name": { "type": "string", "minLength": 1 },
-    "instructions": { "type": "string" },
-    "model": { "$ref": "#/$defs/providerConfig" },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "model": {
+      "$ref": "#/$defs/providerConfig"
+    },
     "tools": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "enabled"],
+        "required": [
+          "name",
+          "enabled"
+        ],
         "properties": {
-          "name": { "type": "string", "minLength": 1 },
-          "enabled": { "type": "boolean" }
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enabled": {
+            "type": "boolean"
+          }
         }
       }
     },
     "knowledgeBaseIds": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "description": "关联的知识库 id 列表（应用层注入 knowledge_search 工具，对话时检索）"
     },
     "memory": {
       "type": "object",
       "properties": {
-        "strategy": { "enum": ["none", "window", "compaction"] },
-        "maxMessages": { "type": "integer", "minimum": 1 },
-        "thresholdPercent": { "type": "number", "minimum": 0, "maximum": 1 },
-        "contextWindowTokens": { "type": "integer", "minimum": 1 }
+        "strategy": {
+          "enum": [
+            "none",
+            "window",
+            "compaction"
+          ]
+        },
+        "maxMessages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "thresholdPercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "contextWindowTokens": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
-    "maxIterations": { "type": "integer", "minimum": 1 },
-    "temperature": { "type": "number" },
+    "maxIterations": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "temperature": {
+      "type": "number"
+    },
     "planning": {
       "description": "规划规程：把“先规划后动手”的倾向注入 system 前缀（仅会话首轮注入，保持 prompt cache 稳定）",
       "type": "object",
-      "required": ["mode"],
+      "required": [
+        "mode"
+      ],
       "properties": {
-        "mode": { "enum": ["off", "prompt"] },
+        "mode": {
+          "enum": [
+            "off",
+            "prompt"
+          ]
+        },
         "guidance": {
           "type": "string",
           "description": "自定义规程文本；缺省使用内核内置 PLANNING_GUIDANCE"
@@ -54,20 +109,90 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 5
+    },
+    "toolGuardrails": {
+      "description": "工具调用守卫：识别无效重试（同参数同结果重复 / 同一失败路径反复撞 / A,B,A,B 周期重放 / 同一批次内对只读工具的重复调用 / 搜索预算超限）并注入引导、拦下调用、必要时停轮",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "总开关（默认开）"
+        },
+        "warnAfter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "同参数同结果连续第几次开始提示（默认 2）"
+        },
+        "blockAfter": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "连续第几次后拦下、不再执行（默认 3）"
+        },
+        "haltAfterBlocks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "本轮累计拦下多少次后停轮（默认 3）"
+        },
+        "maxWebSearches": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "每轮 web_search 上限（默认 50）"
+        },
+        "idempotentTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "只读工具表（覆盖默认 read/grep/find/ls/tree/web_search/knowledge_search）"
+        },
+        "failureTolerantTools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "失败容忍工具表（覆盖默认 bash）"
+        }
+      }
     }
   },
   "$defs": {
     "providerConfig": {
       "type": "object",
-      "required": ["provider", "modelId"],
+      "required": [
+        "provider",
+        "modelId"
+      ],
       "properties": {
-        "provider": { "enum": ["openai-compatible", "anthropic"] },
-        "baseUrl": { "type": "string" },
-        "modelId": { "type": "string", "minLength": 1 },
-        "apiKeyRef": { "type": "string" },
-        "apiKey": { "type": "string" },
-        "temperature": { "type": "number" },
-        "maxTokens": { "type": "integer", "minimum": 1 }
+        "provider": {
+          "enum": [
+            "openai-compatible",
+            "anthropic"
+          ]
+        },
+        "baseUrl": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "apiKeyRef": {
+          "type": "string"
+        },
+        "apiKey": {
+          "type": "string"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "maxTokens": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     }
   }

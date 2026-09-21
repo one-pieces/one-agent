@@ -10,7 +10,7 @@ import type { Message as PersistedMessage, StreamChunk } from "@one-agent/core";
  * （历史回放与实时流式渲染结果一致）。
  */
 
-export type ToolStatus = "running" | "done" | "error" | "denied";
+export type ToolStatus = "running" | "done" | "error" | "denied" | "blocked";
 
 export interface UiToolCall {
   id: string;
@@ -18,6 +18,8 @@ export interface UiToolCall {
   input: unknown;
   status: ToolStatus;
   output?: unknown;
+  /** 被工具调用守卫拦下（工具未执行）时的决策信息 → 卡片显示"被拦下 + 原因" */
+  guardrail?: { code: string; count: number };
 }
 
 export interface UiMessage {
@@ -32,13 +34,55 @@ export interface UiMessage {
 
 export const DENIED_TEXT = "已拒绝";
 
+/**
+ * 从工具结果里取出守卫标记（内核在拦下某次调用时写入 `{ error, guardrail: { code, count } }`）。
+ * 结果可能是对象（正常路径）或 JSON 字符串（历史回放）。
+ */
+export function guardrailOf(output: unknown): { code: string; count: number } | undefined {
+  let value: unknown = output;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  if (!value || typeof value !== "object") return undefined;
+  const g = (value as { guardrail?: unknown }).guardrail;
+  if (!g || typeof g !== "object") return undefined;
+  const code = (g as { code?: unknown }).code;
+  const count = (g as { count?: unknown }).count;
+  if (typeof code !== "string") return undefined;
+  return { code, count: typeof count === "number" ? count : 0 };
+}
+
+/** 工具结果里给人看的错误文本（守卫拦下时就是拦截原因） */
+export function toolErrorText(output: unknown): string {
+  let value: unknown = output;
+  if (typeof output === "string") {
+    try {
+      value = JSON.parse(output);
+    } catch {
+      return output; // 不是 JSON 就直接把原文当错误文本
+    }
+  }
+  if (value && typeof value === "object") {
+    const err = (value as { error?: unknown }).error;
+    if (typeof err === "string") return err;
+    const msg = (value as { message?: unknown }).message;
+    if (typeof msg === "string") return msg;
+  }
+  return typeof output === "string" ? output : "";
+}
+
 export function uid(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** 工具结果 → 展示状态（"已拒绝" 文案标记审批被拒） */
+/** 工具结果 → 展示状态（"已拒绝" = 审批被拒；"blocked" = 被工具调用守卫拦下） */
 export function toolStatusFromResult(ok: boolean, output: unknown): ToolStatus {
   if (!ok && carriesDeniedText(output)) return "denied";
+  if (!ok && guardrailOf(output)) return "blocked";
   return ok ? "done" : "error";
 }
 
@@ -94,7 +138,14 @@ export function applyChunk(ms: UiMessage[], chunk: StreamChunk): UiMessage[] {
     next[k] = {
       ...msg,
       toolCalls: msg.toolCalls.map((tc) =>
-        tc.id === chunk.id ? { ...tc, status: toolStatusFromResult(chunk.ok, chunk.output), output: chunk.output } : tc,
+        tc.id === chunk.id
+          ? {
+              ...tc,
+              status: toolStatusFromResult(chunk.ok, chunk.output),
+              output: chunk.output,
+              ...(guardrailOf(chunk.output) ? { guardrail: guardrailOf(chunk.output)! } : {}),
+            }
+          : tc,
       ),
     };
   } else if (chunk.type === "done") {
@@ -131,12 +182,14 @@ export function toUiMessages(messages: PersistedMessage[]): UiMessage[] {
       ...(m.compacted ? { compacted: true as const } : {}),
       toolCalls: (m.toolCalls ?? []).map((tc) => {
         const r = toolResults.get(tc.id);
+        const guardrail = r ? guardrailOf(r.output) : undefined;
         return {
           id: tc.id,
           name: tc.name,
           input: tc.input,
           status: r ? toolStatusFromResult(r.ok, r.output) : "running",
           output: r?.output,
+          ...(guardrail ? { guardrail } : {}),
         };
       }),
     }));
