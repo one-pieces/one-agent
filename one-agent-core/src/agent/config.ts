@@ -34,6 +34,7 @@ export const agentConfigSchema = z.object({
     })
     .optional(),
   emptyResponseRetries: z.number().int().min(0).max(5).optional(),
+  providerId: z.string().optional(),
   toolGuardrails: z
     .object({
       enabled: z.boolean().optional(),

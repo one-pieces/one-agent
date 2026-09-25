@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { kernel } from "@/lib/kernel";
+import { ensureProviderMigration, resolveAgentModel, snapshotAgentModel } from "@/lib/providers";
 import { validateAgentConfig } from "@one-agent/core";
 
 export const runtime = "nodejs";
@@ -8,6 +9,7 @@ type Params = { params: Promise<{ id: string }> };
 
 /** GET /api/agents/[id] */
 export async function GET(_request: Request, { params }: Params) {
+  ensureProviderMigration();
   const { id } = await params;
   const config = db.getAgent(id);
   if (!config) return Response.json({ error: "not found" }, { status: 404 });
@@ -27,7 +29,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   try {
     const merged = { ...db.getAgent(id)!, ...(patch as object) };
-    const validated = validateAgentConfig(merged);
+    const validated = validateAgentConfig(snapshotAgentModel(merged));
     db.updateAgent(validated);
     kernel.invalidate(id); // 强制内核下次重建 Agent 实例 → 动态配置即时生效
     return Response.json(validated);

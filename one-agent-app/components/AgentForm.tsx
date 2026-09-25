@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AgentConfig } from "@one-agent/core";
+import type { AgentConfigWithProvider, ProviderSummary } from "@/lib/providers";
 import type { KnowledgeBase } from "@/lib/db";
 import Select from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
@@ -32,6 +33,7 @@ export default function AgentForm({
   const router = useRouter();
   const [tools, setTools] = useState<ToolInfo[]>([]);
   const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
+  const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -64,7 +66,34 @@ export default function AgentForm({
       .then((r) => r.json())
       .then((list: KnowledgeBase[]) => setKnowledgeBases(list))
       .catch(() => setKnowledgeBases([]));
+    fetch("/api/providers")
+      .then((r) => r.json())
+      .then((list: ProviderSummary[]) => setProviders(list))
+      .catch(() => setProviders([]));
   }, [initial]);
+
+  /** 「自定义」选项的哨兵值（不引用任何 provider） */
+  const CUSTOM_PROVIDER = "__custom__";
+  const providerId = (form as AgentConfigWithProvider).providerId;
+  const selectedProvider = providers.find((p) => p.id === providerId);
+
+  /** 切换供应商：写 providerId；模型 ID 为空时用该供应商登记的默认模型填充 */
+  const onPickProvider = (value: string) => {
+    if (value === CUSTOM_PROVIDER) {
+      setForm((f) => {
+        const next = { ...(f as AgentConfigWithProvider) };
+        delete next.providerId;
+        return next as AgentConfig;
+      });
+      return;
+    }
+    const provider = providers.find((p) => p.id === value);
+    setForm((f) => ({
+      ...f,
+      providerId: value,
+      model: { ...f.model, modelId: f.model.modelId || provider?.models[0] || "" },
+    }) as AgentConfig);
+  };
 
   const set = <K extends keyof AgentConfig>(key: K, value: AgentConfig[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -164,30 +193,50 @@ export default function AgentForm({
         />
       </div>
 
-      <h3>模型（动态配置）</h3>
+      <h3>模型（由供应商提供连接配置）</h3>
       <div className="grid2">
         <div className="field">
-          <label>Provider</label>
+          <label>供应商 *</label>
           <Select
-            value={form.model.provider}
-            onChange={(v) => setModel("provider", v as AgentConfig["model"]["provider"])}
+            value={(form as AgentConfigWithProvider).providerId ?? CUSTOM_PROVIDER}
+            onChange={onPickProvider}
             options={[
-              { value: "openai-compatible", label: "OpenAI 兼容（DeepSeek/Ollama/LM Studio…）" },
-              { value: "anthropic", label: "Anthropic 原生" },
+              ...providers.map((p) => ({
+                value: p.id,
+                label: `${p.name}（${p.kind === "anthropic" ? "Anthropic" : "OpenAI 兼容"}${p.hasApiKey ? " · 已配密钥" : ""}）`,
+              })),
+              { value: CUSTOM_PROVIDER, label: "自定义（本 agent 自己保存连接配置）" },
             ]}
+            placeholder="选择供应商"
           />
-        </div>
-        <div className="field">
-          <label>Base URL</label>
-          <input value={form.model.baseUrl ?? ""} onChange={(e) => setModel("baseUrl", e.target.value)} placeholder="http://localhost:11434/v1" />
+          <span className="field-hint">
+            {selectedProvider
+              ? `Base URL: ${selectedProvider.baseUrl}${selectedProvider.hasApiKey ? " · 密钥由供应商统一管理" : " · 该供应商未配置密钥"}`
+              : "自定义：kind / Base URL / API Key 存在本 agent 里（旧行为）"}
+            {providers.length === 0 && (
+              <>
+                {" "}
+                · 还没有供应商，先去 <Link href="/providers">供应商</Link> 页面建一个
+              </>
+            )}
+          </span>
         </div>
         <div className="field">
           <label>模型 ID *</label>
-          <input value={form.model.modelId} onChange={(e) => setModel("modelId", e.target.value)} placeholder="qwen2.5-7b-64k / deepseek-chat" />
-        </div>
-        <div className="field">
-          <label>API Key（Ollama 可填 not-needed）</label>
-          <input type="password" value={form.model.apiKey ?? ""} onChange={(e) => setModel("apiKey", e.target.value)} placeholder="sk-..." />
+          <input
+            list="agent-model-options"
+            value={form.model.modelId}
+            onChange={(e) => setModel("modelId", e.target.value)}
+            placeholder={selectedProvider?.models[0] ?? "deepseek-chat / qwen2.5-7b-64k"}
+          />
+          <datalist id="agent-model-options">
+            {(selectedProvider?.models ?? []).map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+          {selectedProvider && selectedProvider.models.length > 0 && (
+            <span className="field-hint">该供应商登记的模型：{selectedProvider.models.join("、")}</span>
+          )}
         </div>
         <div className="field">
           <label>Temperature</label>
@@ -207,6 +256,38 @@ export default function AgentForm({
           />
         </div>
       </div>
+      {!selectedProvider && (
+        <div className="grid2">
+          <div className="field">
+            <label>Provider 类型</label>
+            <Select
+              value={form.model.provider}
+              onChange={(v) => setModel("provider", v as AgentConfig["model"]["provider"])}
+              options={[
+                { value: "openai-compatible", label: "OpenAI 兼容（DeepSeek/Ollama/LM Studio…）" },
+                { value: "anthropic", label: "Anthropic 原生" },
+              ]}
+            />
+          </div>
+          <div className="field">
+            <label>Base URL</label>
+            <input
+              value={form.model.baseUrl ?? ""}
+              onChange={(e) => setModel("baseUrl", e.target.value)}
+              placeholder="http://localhost:11434/v1"
+            />
+          </div>
+          <div className="field">
+            <label>API Key（Ollama 可填 not-needed）</label>
+            <input
+              type="password"
+              value={form.model.apiKey ?? ""}
+              onChange={(e) => setModel("apiKey", e.target.value)}
+              placeholder="sk-..."
+            />
+          </div>
+        </div>
+      )}
 
       <h3>工具（运行时动态启停）</h3>
       {tools.length === 0 ? (

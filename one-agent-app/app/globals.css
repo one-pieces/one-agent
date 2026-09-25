@@ -1271,6 +1271,19 @@ h3 {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
+/* 表单字段下方的说明小字（与 .card-sub 同为 12px 次级文字，仅更轻的量级） */
+.field-hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.field-hint a {
+  color: var(--primary);
+}
+
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1503,6 +1516,8 @@ h3 {
 
 .panel {
   margin-top: 16px;
+  /* 面板与下方列表/卡片同 16px 竖向节奏（否则两块 --card 边界贴成 1px 视觉粘一起） */
+  margin-bottom: 16px;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;

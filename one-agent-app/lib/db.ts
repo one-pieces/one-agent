@@ -50,6 +50,18 @@ export class AppDatabase {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS providers (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        kind       TEXT NOT NULL DEFAULT 'openai-compatible',
+        base_url   TEXT NOT NULL DEFAULT '',
+        api_key    TEXT NOT NULL DEFAULT '',
+        models     TEXT NOT NULL DEFAULT '',
+        notes      TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS knowledge_bases (
         id             TEXT PRIMARY KEY,
         name           TEXT NOT NULL,
@@ -456,6 +468,80 @@ export class AppDatabase {
     return { total, sources, items };
   }
 
+  // ── Provider CRUD ──
+
+  /** 列表：默认不带密钥（UI 只需要知道"有没有配"） */
+  listProviders(withKey = false): Provider[] {
+    const rows = this.db.prepare("SELECT * FROM providers ORDER BY updated_at DESC").all() as unknown as ProviderRow[];
+    return rows.map((r) => providerFromRow(r, withKey));
+  }
+
+  getProvider(id: string, withKey = true): Provider | null {
+    const row = this.db.prepare("SELECT * FROM providers WHERE id = ?").get(id) as unknown as ProviderRow | undefined;
+    return row ? providerFromRow(row, withKey) : null;
+  }
+
+  /** 按 (kind, baseUrl) 查已有 provider —— 迁移与"复用同源配置"用 */
+  findProviderByEndpoint(kind: string, baseUrl: string): Provider | null {
+    const row = this.db
+      .prepare("SELECT * FROM providers WHERE kind = ? AND base_url = ? LIMIT 1")
+      .get(kind, baseUrl) as unknown as ProviderRow | undefined;
+    return row ? providerFromRow(row) : null;
+  }
+
+  createProvider(id: string, input: ProviderInput): Provider {
+    const now = new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO providers (id, name, kind, base_url, api_key, models, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.name.trim(),
+        input.kind ?? "openai-compatible",
+        input.baseUrl.trim(),
+        encryptProviderKey((input.apiKey ?? "").trim()),
+        parseModels(input.models).join("\n"),
+        (input.notes ?? "").trim(),
+        now,
+        now,
+      );
+    return this.getProvider(id)!;
+  }
+
+  /** 更新：apiKey 传 undefined = 不改；传空串 = 清空 */
+  updateProvider(id: string, patch: Partial<ProviderInput>): Provider | null {
+    const existing = this.getProvider(id);
+    if (!existing) return null;
+    const next = {
+      name: patch.name !== undefined ? patch.name.trim() : existing.name,
+      kind: patch.kind ?? existing.kind,
+      baseUrl: patch.baseUrl !== undefined ? patch.baseUrl.trim() : existing.baseUrl,
+      apiKey: patch.apiKey !== undefined ? encryptProviderKey(patch.apiKey.trim()) : encryptProviderKey(existing.apiKey),
+      models: patch.models !== undefined ? parseModels(patch.models).join("\n") : existing.models.join("\n"),
+      notes: patch.notes !== undefined ? patch.notes.trim() : existing.notes,
+    };
+    this.db
+      .prepare(
+        `UPDATE providers SET name = ?, kind = ?, base_url = ?, api_key = ?, models = ?, notes = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(next.name, next.kind, next.baseUrl, next.apiKey, next.models, next.notes, new Date().toISOString(), id);
+    return this.getProvider(id);
+  }
+
+  deleteProvider(id: string): void {
+    this.db.prepare("DELETE FROM providers WHERE id = ?").run(id);
+  }
+
+  /** 引用了该 provider 的 agent id 列表（删除前校验用） */
+  agentsUsingProvider(providerId: string): string[] {
+    return this.listAgents()
+      .filter((a) => (a as { providerId?: string }).providerId === providerId)
+      .map((a) => a.id);
+  }
+
   countEmbeddings(knowledgeBaseId: string): number {
     return (
       this.db.prepare("SELECT COUNT(*) AS n FROM knowledge_embeddings WHERE knowledge_base_id = ?").get(knowledgeBaseId) as {
@@ -491,6 +577,94 @@ export const db = new AppDatabase();
 
 export function newAgentId(): string {
   return `agent-${randomUUID().slice(0, 8)}`;
+}
+
+// ── 模型供应商（Provider）：集中管理 kind/baseUrl/apiKey/模型清单，agent 只引用 providerId ──
+
+export type ProviderKind = "openai-compatible" | "anthropic";
+
+export interface Provider {
+  id: string;
+  /** 展示名（如"DeepSeek 生产""本地 Ollama"） */
+  name: string;
+  kind: ProviderKind;
+  baseUrl: string;
+  /** 明文密钥（GET 单个时返回；列表接口不带出） */
+  apiKey: string;
+  /** 模型清单（每行一个，第一个为该 provider 的默认模型） */
+  models: string[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderInput {
+  name: string;
+  kind?: ProviderKind;
+  baseUrl: string;
+  apiKey?: string;
+  models?: string[] | string;
+  notes?: string;
+}
+
+interface ProviderRow {
+  id: string;
+  name: string;
+  kind: string;
+  base_url: string;
+  api_key: string;
+  models: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 模型清单字符串 ↔ 数组（逗号/换行/分号分隔都接受；去空去重保序） */
+function parseModels(raw: string | string[] | undefined): string[] {
+  const parts = Array.isArray(raw) ? raw : String(raw ?? "").split(/[\n,;]+/);
+  const out: string[] = [];
+  for (const part of parts) {
+    const v = part.trim();
+    if (v && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+function providerFromRow(row: ProviderRow, withKey = true): Provider {
+  const rawKey = row.api_key ?? "";
+  let apiKey = "";
+  if (withKey) {
+    if (rawKey && isEncrypted(rawKey)) {
+      try {
+        apiKey = decryptSecret(rawKey);
+      } catch {
+        apiKey = "";
+      }
+    } else {
+      apiKey = rawKey;
+    }
+  }
+  return {
+    id: row.id,
+    name: row.name,
+    kind: (row.kind === "anthropic" ? "anthropic" : "openai-compatible") as ProviderKind,
+    baseUrl: row.base_url,
+    apiKey,
+    models: parseModels(row.models),
+    notes: row.notes ?? "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** 写库前加密 provider 密钥 */
+function encryptProviderKey(plain: string): string {
+  if (!plain || isEncrypted(plain)) return plain;
+  return encryptSecret(plain);
+}
+
+export function newProviderId(): string {
+  return `provider-${randomUUID().slice(0, 8)}`;
 }
 
 // ── 知识库类型（SQLite 行 ↔ 对象） ──

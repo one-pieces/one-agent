@@ -147,6 +147,12 @@ export interface AgentConfig {
     guidance?: string;
   };
   /**
+   * 模型供应商引用（应用层语义）：宿主应用（如 one-agent-app）用它解析出
+   * `model.provider/baseUrl/apiKey`；**核心运行时忽略该字段**，只消费解析后的 model。
+   * 便于集中管理密钥与端点（改一次全站生效），见 app 侧 lib/providers.ts。
+   */
+  providerId?: string;
+  /**
    * 工具调用守卫（port of Hermes tool_guardrails）：识别无效重试（同参数同结果重复、
    * 沿同一条失败路径反复撞、A,B,A,B 周期重放、搜索预算超限）并注入引导 / 拦下调用 / 停轮。
    * 不配置 = 用默认值且开启；enabled:false 关闭。

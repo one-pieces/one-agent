@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { kernel } from "@/lib/kernel";
+import { ensureProviderMigration, resolveAgentModel } from "@/lib/providers";
 
 export const runtime = "nodejs";
 
@@ -29,8 +30,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "agentId, sessionId, message 必填" }, { status: 400 });
   }
 
-  const config = db.getAgent(agentId);
-  if (!config) return Response.json({ error: `agent not found: ${agentId}` }, { status: 404 });
+  ensureProviderMigration();
+  const stored = db.getAgent(agentId);
+  if (!stored) return Response.json({ error: `agent not found: ${agentId}` }, { status: 404 });
+  // 运行时解析模型供应商：改了 provider 的密钥/地址，所有引用它的 agent 立即生效
+  const config = resolveAgentModel(stored);
 
   // 危险工具放行：请求级 allowDangerous 或会话 meta.allowDangerous
   const session = await kernel.getSession(sessionId);

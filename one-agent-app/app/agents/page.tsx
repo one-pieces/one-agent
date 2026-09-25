@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { ensureProviderMigration } from "@/lib/providers";
 import DeleteAgentButton from "@/components/DeleteAgentButton";
 
 export const dynamic = "force-dynamic";
 
 export default function AgentsPage() {
+  ensureProviderMigration();
   const agents = db.listAgents();
+  /** providerId → 供应商名（列表上直接看出这个 agent 用的哪家连接） */
+  const providerName = new Map(db.listProviders().map((p) => [p.id, p.name]));
   return (
     <div className="page">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -22,8 +26,15 @@ export default function AgentsPage() {
             <div className="card-main">
               <h2>{a.name}</h2>
               <div className="card-sub">
-                <code>{a.id}</code> · {a.model.provider} / {a.model.modelId} · 工具{" "}
-                {a.tools.filter((t) => t.enabled).length} 个
+                <code>{a.id}</code> ·{" "}
+                {a.providerId ? (
+                  <>
+                    <Link href="/providers">{providerName.get(a.providerId) ?? a.providerId}</Link> /{" "}
+                  </>
+                ) : (
+                  <>{a.model.provider} / </>
+                )}
+                {a.model.modelId} · 工具 {a.tools.filter((t) => t.enabled).length} 个
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>

@@ -157,6 +157,10 @@
           "description": "失败容忍工具表（覆盖默认 bash）"
         }
       }
+    },
+    "providerId": {
+      "description": "模型供应商引用（应用层语义）：宿主应用据此解析 model.provider/baseUrl/apiKey；核心运行时忽略该字段",
+      "type": "string"
     }
   },
   "$defs": {
