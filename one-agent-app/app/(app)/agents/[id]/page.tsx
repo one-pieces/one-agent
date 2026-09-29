@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import AgentForm from "@/components/AgentForm";
+import WidgetSettingsCard from "@/components/WidgetSettingsCard";
 import NewSessionButton from "@/components/NewSessionButton";
 import DeleteAgentButton from "@/components/DeleteAgentButton";
 
@@ -32,6 +33,8 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
 
       <h3>配置（动态编辑，保存后即时生效）</h3>
       <AgentForm mode="edit" initial={config} />
+
+      <WidgetSettingsCard agentId={id} />
     </div>
   );
 }

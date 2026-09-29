@@ -1514,6 +1514,19 @@ h3 {
   color: var(--muted-foreground);
 }
 
+/* 轻量成功提示（与 .error-banner 同构，绿色） */
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: color-mix(in srgb, #2da44e 14%, transparent);
+  border: 1px solid color-mix(in srgb, #2da44e 38%, transparent);
+  color: color-mix(in srgb, #2da44e 72%, var(--foreground));
+}
+
 .panel {
   margin-top: 16px;
   /* 面板与下方列表/卡片同 16px 竖向节奏（否则两块 --card 边界贴成 1px 视觉粘一起） */

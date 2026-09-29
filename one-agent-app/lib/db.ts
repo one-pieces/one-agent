@@ -50,6 +50,22 @@ export class AppDatabase {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS widget_settings (
+        agent_id      TEXT PRIMARY KEY,
+        enabled       INTEGER NOT NULL DEFAULT 0,
+        embed_key     TEXT NOT NULL DEFAULT '',
+        title         TEXT NOT NULL DEFAULT '',
+        subtitle      TEXT NOT NULL DEFAULT '',
+        welcome       TEXT NOT NULL DEFAULT '',
+        placeholder   TEXT NOT NULL DEFAULT '',
+        primary_color TEXT NOT NULL DEFAULT '',
+        position      TEXT NOT NULL DEFAULT 'right',
+        origins       TEXT NOT NULL DEFAULT '',
+        rate_limit    INTEGER NOT NULL DEFAULT 20,
+        created_at    TEXT NOT NULL,
+        updated_at    TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS providers (
         id         TEXT PRIMARY KEY,
         name       TEXT NOT NULL,
@@ -468,6 +484,96 @@ export class AppDatabase {
     return { total, sources, items };
   }
 
+  // ── Widget（客服组件）──
+
+  getWidgetSettings(agentId: string): WidgetSettings | null {
+    const row = this.db.prepare("SELECT * FROM widget_settings WHERE agent_id = ?").get(agentId) as unknown as WidgetRow | undefined;
+    return row ? widgetFromRow(row) : null;
+  }
+
+  listWidgetSettings(): WidgetSettings[] {
+    const rows = this.db.prepare("SELECT * FROM widget_settings ORDER BY updated_at DESC").all() as unknown as WidgetRow[];
+    return rows.map(widgetFromRow);
+  }
+
+  /** 按嵌入 key 反查（SDK 请求只带 agentId + key，用 key 校验） */
+  findWidgetByKey(embedKey: string): WidgetSettings | null {
+    const row = this.db.prepare("SELECT * FROM widget_settings WHERE embed_key = ?").get(embedKey) as unknown as WidgetRow | undefined;
+    return row ? widgetFromRow(row) : null;
+  }
+
+  /** 新建或更新（不存在时先建默认行，embed_key 自动生成） */
+  upsertWidgetSettings(agentId: string, patch: WidgetSettingsInput): WidgetSettings {
+    const existing = this.getWidgetSettings(agentId);
+    const now = new Date().toISOString();
+    if (!existing) {
+      this.db
+        .prepare(
+          `INSERT INTO widget_settings (agent_id, enabled, embed_key, title, subtitle, welcome, placeholder,
+             primary_color, position, origins, rate_limit, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          agentId,
+          patch.enabled ? 1 : 0,
+          newEmbedKey(),
+          patch.title ?? "",
+          patch.subtitle ?? "",
+          patch.welcome ?? "",
+          patch.placeholder ?? "",
+          patch.primaryColor ?? "",
+          patch.position ?? "right",
+          parseOrigins(patch.origins).join("\n"),
+          patch.rateLimit ?? 20,
+          now,
+          now,
+        );
+      return this.getWidgetSettings(agentId)!;
+    }
+    const next = {
+      enabled: patch.enabled ?? existing.enabled,
+      title: patch.title ?? existing.title,
+      subtitle: patch.subtitle ?? existing.subtitle,
+      welcome: patch.welcome ?? existing.welcome,
+      placeholder: patch.placeholder ?? existing.placeholder,
+      primaryColor: patch.primaryColor ?? existing.primaryColor,
+      position: patch.position ?? existing.position,
+      origins: patch.origins !== undefined ? parseOrigins(patch.origins).join("\n") : existing.origins.join("\n"),
+      rateLimit: patch.rateLimit ?? existing.rateLimit,
+    };
+    this.db
+      .prepare(
+        `UPDATE widget_settings SET enabled = ?, title = ?, subtitle = ?, welcome = ?, placeholder = ?,
+           primary_color = ?, position = ?, origins = ?, rate_limit = ?, updated_at = ?
+         WHERE agent_id = ?`,
+      )
+      .run(
+        next.enabled ? 1 : 0,
+        next.title,
+        next.subtitle,
+        next.welcome,
+        next.placeholder,
+        next.primaryColor,
+        next.position,
+        next.origins,
+        next.rateLimit,
+        now,
+        agentId,
+      );
+    return this.getWidgetSettings(agentId)!;
+  }
+
+  /** 重置嵌入 key（旧嵌入代码立即失效） */
+  resetWidgetKey(agentId: string): WidgetSettings | null {
+    if (!this.getWidgetSettings(agentId)) return null;
+    this.db.prepare("UPDATE widget_settings SET embed_key = ?, updated_at = ? WHERE agent_id = ?").run(newEmbedKey(), new Date().toISOString(), agentId);
+    return this.getWidgetSettings(agentId);
+  }
+
+  deleteWidgetSettings(agentId: string): void {
+    this.db.prepare("DELETE FROM widget_settings WHERE agent_id = ?").run(agentId);
+  }
+
   // ── Provider CRUD ──
 
   /** 列表：默认不带密钥（UI 只需要知道"有没有配"） */
@@ -577,6 +683,89 @@ export const db = new AppDatabase();
 
 export function newAgentId(): string {
   return `agent-${randomUUID().slice(0, 8)}`;
+}
+
+// ── 客服组件（Widget）：每个 agent 一份嵌入配置，客户网站通过 SDK 嵌入 ──
+
+export interface WidgetSettings {
+  agentId: string;
+  /** 是否允许嵌入（关闭后 SDK 拉配置会拿到 disabled，按钮不显示） */
+  enabled: boolean;
+  /** 公开嵌入 key（可重置；不是密钥，是"允许这个 agent 被嵌入"的凭据） */
+  embedKey: string;
+  title: string;
+  subtitle: string;
+  welcome: string;
+  placeholder: string;
+  primaryColor: string;
+  position: "right" | "left";
+  /** 允许嵌入的来源白名单（每行一个，支持 https://a.com 与 *.a.com）；空 = 不限制 */
+  origins: string[];
+  /** 每个访客每分钟最多几条消息 */
+  rateLimit: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WidgetSettingsInput {
+  enabled?: boolean;
+  title?: string;
+  subtitle?: string;
+  welcome?: string;
+  placeholder?: string;
+  primaryColor?: string;
+  position?: "right" | "left";
+  origins?: string[] | string;
+  rateLimit?: number;
+}
+
+interface WidgetRow {
+  agent_id: string;
+  enabled: number;
+  embed_key: string;
+  title: string;
+  subtitle: string;
+  welcome: string;
+  placeholder: string;
+  primary_color: string;
+  position: string;
+  origins: string;
+  rate_limit: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** 来源清单字符串 ↔ 数组（逗号/换行分隔，去空去重保序） */
+function parseOrigins(raw: string | string[] | undefined): string[] {
+  const parts = Array.isArray(raw) ? raw : String(raw ?? "").split(/[\n,]+/);
+  const out: string[] = [];
+  for (const part of parts) {
+    const v = part.trim().replace(/\/+$/, "");
+    if (v && !out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
+function widgetFromRow(row: WidgetRow): WidgetSettings {
+  return {
+    agentId: row.agent_id,
+    enabled: row.enabled === 1,
+    embedKey: row.embed_key,
+    title: row.title,
+    subtitle: row.subtitle,
+    welcome: row.welcome,
+    placeholder: row.placeholder,
+    primaryColor: row.primary_color,
+    position: row.position === "left" ? "left" : "right",
+    origins: parseOrigins(row.origins),
+    rateLimit: row.rate_limit,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function newEmbedKey(): string {
+  return `wk_${randomUUID().replace(/-/g, "")}`;
 }
 
 // ── 模型供应商（Provider）：集中管理 kind/baseUrl/apiKey/模型清单，agent 只引用 providerId ──

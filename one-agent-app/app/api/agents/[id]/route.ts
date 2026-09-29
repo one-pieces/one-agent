@@ -42,6 +42,8 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   const { id } = await params;
   db.deleteAgent(id);
+  // 顺带清掉该 agent 的客服组件配置（避免孤儿配置/嵌入代码仍然有效）
+  db.deleteWidgetSettings(id);
   kernel.invalidate(id);
   return Response.json({ ok: true });
 }
