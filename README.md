@@ -67,4 +67,5 @@ UI 对齐 eve-agent：左侧图标导航栏 + 可折叠会话侧边栏（显示�
 - [x] 模型供应商独立模块：`providers` 表 + `/providers` 管理页（kind/Base URL/API Key/模型清单，密钥 AES-256-GCM 加密）；Agent 只填 `providerId` 下拉选择，运行时解析 → 换密钥/换地址一次生效；老配置自动迁移
 - [x] 工具调用守卫（移植 Hermes `tool_guardrails`）：识别无效重试（幂等无进展 / 同参反复失败 / 调用周期 / 批内重复），按 提示 → 拦下 → 停轮 三级处理；被拦下的调用在前端以「被守卫拦下」呈现
 - [x] 客服组件（嵌入网站）：一行 `<script src="/widget.js" data-agent data-key>` 接入任意网站 → 右下角客服按钮 + 面板（iframe 隔离样式）→ 访客无需登录即可与 agent 对话；后台可按 agent 配置标题/欢迎语/主题色/位置/来源白名单/限流，SSE 工具内部信息不外泄（详见 docs/widget-embed-design.md）
+- [x] Agent 详情页二级导航：**Agent 配置**（模型/工具/知识库/客服组件）+ **对话记录**（每个用户与 agent 的对话列表，客服访客会话带来源域名、可按类型筛选与搜索、可打开与删除）
 - [ ] M6（可选）：Python 内核（契约冻结后）
