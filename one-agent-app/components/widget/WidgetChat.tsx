@@ -229,6 +229,7 @@ export default function WidgetChat({
           <div className="oa-widget-error" role="alert">
             <strong>暂时无法使用在线客服</strong>
             <p>{fatal}</p>
+            <p className="oa-widget-error-hint">如果你是网站管理员：请在 one-agent 后台该 Agent 的「客服组件」里重新复制嵌入代码。</p>
           </div>
         )}
         {!fatal && config?.welcome && messages.length === 0 && (
@@ -350,6 +351,7 @@ html[data-oa-theme="dark"] .oa-widget-root{--oa-bg:#16181d;--oa-fg:#e8eaf0;--oa-
   border-radius:12px;padding:12px 14px;font-size:13px}
 .oa-widget-error strong{display:block;margin-bottom:4px}
 .oa-widget-error p{margin:0;color:var(--oa-muted);word-break:break-word}
+.oa-widget-error-hint{margin-top:6px!important;font-size:12px;opacity:.85}
 .oa-widget-foot{display:flex;align-items:flex-end;gap:8px;padding:12px;border-top:1px solid var(--oa-line);flex-shrink:0}
 .oa-widget-foot textarea{flex:1;resize:none;max-height:120px;min-height:40px;padding:10px 12px;border-radius:12px;
   border:1px solid var(--oa-line);background:var(--oa-bg);color:var(--oa-fg);font:inherit;font-size:14px;outline:none}

@@ -13,6 +13,7 @@ import {
   publicWidgetConfig,
   requestOrigin,
   resetRateLimits,
+  maskKey,
   sanitizeVisitorChunk,
   widgetMetaOf,
 } from "../lib/widget";
@@ -190,5 +191,17 @@ describe("访客会话标记", () => {
     expect(widgetMetaOf({ meta })?.visitorToken).toBe("t");
     expect(widgetMetaOf({ meta: {} })).toBeNull();
     expect(widgetMetaOf(null)).toBeNull();
+  });
+});
+
+describe("日志掩码", () => {
+  it("key 只留前 10 位与后 4 位，避免整串进日志", () => {
+    const key = "wk_1b805d225ed743688146308bbaa072ef";
+    const masked = maskKey(key);
+    expect(masked.startsWith("wk_1b805d2")).toBe(true);
+    expect(masked).toContain("…");
+    expect(masked.endsWith("72ef")).toBe(true);
+    expect(masked.length).toBeLessThan(key.length);
+    expect(maskKey("")).toBe("(空/短)");
   });
 });

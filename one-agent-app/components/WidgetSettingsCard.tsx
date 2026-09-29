@@ -19,6 +19,8 @@ export default function WidgetSettingsCard({ agentId }: { agentId: string }) {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  /** 重置 key 后常驻提醒：旧嵌入代码已失效，必须更新网站上的代码 */
+  const [keyRotated, setKeyRotated] = useState(false);
   /** 允许的来源：用文本编辑，提交时按行拆分 */
   const [originsText, setOriginsText] = useState("");
 
@@ -42,6 +44,19 @@ export default function WidgetSettingsCard({ agentId }: { agentId: string }) {
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // 回到这个标签页时重新拉一遍：如果 key 在别处被重置过，卡片里的嵌入代码不会停留在旧的
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [load]);
 
   const save = useCallback(
@@ -209,6 +224,14 @@ export default function WidgetSettingsCard({ agentId }: { agentId: string }) {
             </a>
           </div>
 
+          {keyRotated && (
+            <div className="error-banner" style={{ marginTop: 12 }}>
+              <span>
+                嵌入 key 已重置：网站上的旧嵌入代码<strong>已失效</strong>，请用下面的新代码替换。
+              </span>
+            </div>
+          )}
+
           <h4 style={{ marginBottom: 6, marginTop: 18 }}>嵌入代码</h4>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <textarea readOnly rows={2} value={snippet} style={{ flex: 1 }} onFocus={(e) => e.currentTarget.select()} />
@@ -220,13 +243,30 @@ export default function WidgetSettingsCard({ agentId }: { agentId: string }) {
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
             <span className="field-hint" style={{ margin: 0 }}>
               嵌入 key：<code>{settings.embedKey}</code>
+              {settings.updatedAt && <> · 配置更新于 {new Date(settings.updatedAt).toLocaleString("zh-CN", { hour12: false })}</>}
+              <button
+                className="btn"
+                style={{ marginLeft: 8, padding: "2px 8px" }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(settings.embedKey);
+                    setNotice("嵌入 key 已复制");
+                    setTimeout(() => setNotice(""), 2000);
+                  } catch {
+                    setError("复制失败，请手动选中复制");
+                  }
+                }}
+              >
+                复制 key
+              </button>
             </span>
             <button
               className="btn"
               disabled={busy}
               onClick={() => {
                 if (!window.confirm("重置后，旧嵌入代码会立即失效（需要重新粘贴新代码）。确定重置？")) return;
-                void save({ resetKey: true }, "嵌入 key 已重置，请更新嵌入代码");
+                setKeyRotated(true);
+                void save({ resetKey: true }, "嵌入 key 已重置");
               }}
             >
               <RefreshCwIcon size={13} /> 重置 key

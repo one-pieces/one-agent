@@ -75,6 +75,11 @@ export function requestOrigin(request: Request): string | null {
   }
 }
 
+/** 日志里只留前 10 位（key 是公开凭据，但仍不必整串进日志） */
+export function maskKey(key: string): string {
+  return key.length > 10 ? `${key.slice(0, 10)}…${key.slice(-4)}` : "(空/短)";
+}
+
 export function normalizeOrigin(raw: string): string {
   return raw.trim().replace(/\/+$/, "").toLowerCase();
 }
@@ -288,8 +293,19 @@ export function resolvePublicWidget(request: Request, agentId: string, key: stri
   if (!agent) return fail(404, `agent 不存在：${agentId}`);
 
   const stored = db.getWidgetSettings(agentId);
-  if (!stored || !stored.embedKey) return fail(403, "该 agent 还没有配置客服组件，请先在后台开启");
-  if (!key || key !== stored.embedKey) return fail(403, "嵌入 key 无效或已重置");
+  if (!stored || !stored.embedKey) {
+    return fail(403, "该 agent 还没有配置客服组件，请先在后台「客服组件」里开启");
+  }
+  if (!key || key !== stored.embedKey) {
+    // 站点上粘的是旧嵌入代码（key 被重置过）是最常见的接入问题 → 日志留痕 + 可操作提示
+    console.warn(
+      `[widget] 嵌入 key 校验失败 agent=${agentId} 收到=${maskKey(key)} 当前=${maskKey(stored.embedKey)}（页面上的嵌入代码可能已过期）`,
+    );
+    return fail(
+      403,
+      "嵌入 key 无效或已重置：网页上的嵌入代码可能已过期。站长请在 one-agent 后台该 Agent 的「客服组件」里重新复制嵌入代码。",
+    );
+  }
 
   const settings = effectiveWidgetSettings(agent);
   if (!settings.enabled) return fail(403, "客服组件已关闭", settings);
