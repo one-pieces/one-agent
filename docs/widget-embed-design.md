@@ -85,6 +85,19 @@ window.OneAgentChat.on("unread", (n) => console.log(n));  // 另有 ready / open
 - 支持 Escape 关闭、`prefers-reduced-motion`、按钮 `aria-label` / `aria-expanded`
 - 本机演示页：`/widget-demo.html?agent=<agentId>&key=<embedKey>`（后台卡片里的「预览效果」直接打开）
 
+## Markdown 渲染
+
+助手回复按 Markdown 渲染（与后台对话页**同一套**：`streamdown` + `@streamdown/cjk`（中文断行）+
+`@streamdown/code`（shiki 高亮 + 复制按钮，配色见 `lib/code-theme.ts`））：
+
+- 支持标题 / 列表 / 表格 / 引用 / 链接 / 行内代码 / 代码块（带语法高亮与复制）/ 图片
+- 用户消息保持**纯文本**（不把访客输入当标记解析）
+- 窄面板适配（`.oa-widget-md` 作用域）：气泡放宽到 92%、表格块内横向滚动、代码块限高 320px 块内滚动、
+  标题与列表项间距压缩，`min-width:0` 防长行硬裁
+- 主题一致性：面板按 `?theme=` 或 `prefers-color-scheme` 决定明暗后，**同时设置 `data-theme`**
+  （globals.css 的代码高亮/面板色变量挂在该属性上）—— 否则访客面板会继承后台管理员的明暗偏好，
+  出现「深色面板 + 浅色代码块」这类割裂
+
 ## 访客侧体验
 
 - 首次打开显示欢迎语；对话历史存在访客浏览器（localStorage 存 `sessionId + visitorToken`），刷新/重开面板继续同一段对话
@@ -97,9 +110,11 @@ window.OneAgentChat.on("unread", (n) => console.log(n));  // 另有 ready / open
   CORS 头、访客事件过滤（工具名与结果不外泄、错误不泄漏上游报错）、限流窗口与隔离、嵌入代码、公开配置不泄漏内部字段、访客会话标记
 - API 冒烟 `scripts/smoke-widget-api.py`（34 项，33 通过 + 1 项重跑前置断言）：配置读写与校验、key 校验、会话复用、真实对话、
   历史、错误 token、限流 429、来源白名单、关闭后失效、重置 key 后旧代码失效
-- 端到端 `scripts/e2e-widget.py`（21 项全绿，Playwright + 真实 deepseek）：
+- 端到端 `scripts/e2e-widget.py`（26 项全绿，Playwright + 真实 deepseek）：
   宿主页面注入（按钮右下 24px/56×56、`window.OneAgentChat` 可用）、点击展开、欢迎语与占位符按配置、
-  发消息拿到真实回复、关闭/重开、**刷新后访客会话恢复**、白名单拦截时面板显示来源未授权
+  发消息拿到真实回复、关闭/重开、**刷新后访客会话恢复**、白名单拦截时面板显示来源未授权、
+  **Markdown 渲染**（三级标题 / 三项列表 / 行内代码 / 代码块限高 / 表格 / 无残留标记 / 无横向溢出）
+- 明暗两套实测：暗色下正文 12.4:1、代码块文字 16.6:1，`data-theme` 与面板主题一致（代码块底 rgb(11,13,19)）
 
 ## 未做（可继续）
 

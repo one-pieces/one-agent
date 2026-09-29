@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Streamdown } from "streamdown";
+import { cjk } from "@streamdown/cjk";
+import { codePlugin } from "@/lib/code-theme";
 
 /**
  * 访客侧客服对话界面（跑在客户网站嵌入的 iframe 里）。
@@ -30,6 +33,13 @@ interface Msg {
 }
 
 const STORAGE_PREFIX = "oa:widget:";
+
+/** 与后台对话页同一套渲染：cjk（中文断行）+ code（shiki 高亮，配色取自 globals.css 变量） */
+const markdownPlugins = { cjk, code: codePlugin };
+const codeBlockControls = { code: { copy: true, download: false } };
+const codeBlockTranslations = { copyCode: "复制", copied: "已复制" };
+/** 面板只有 380px 宽，代码块限高后块内滚动（0 = 不限高，但窄面板里会长到出屏） */
+const WIDGET_CODE_MAX_HEIGHT = 320;
 
 export default function WidgetChat({
   agentId,
@@ -131,6 +141,9 @@ export default function WidgetChat({
     if (!config) return;
     const isDark = theme === "dark" || (theme !== "light" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
     document.documentElement.setAttribute("data-oa-theme", isDark ? "dark" : "light");
+    // globals.css 的代码高亮/面板色变量挂在 [data-theme] 上；嵌入页里由面板主题说了算
+    // （根布局会按后台主题先设一次，这里覆盖它，避免访客面板出现后台的配色）
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
   }, [config, theme]);
 
   useEffect(() => {
@@ -240,8 +253,21 @@ export default function WidgetChat({
         {messages.map((m) => (
           <div key={m.id} className={`oa-widget-row ${m.role}`}>
             <div className="oa-widget-bubble">
-              {m.content}
-              {m.streaming && <span className="oa-widget-caret" aria-hidden="true" />}
+              {m.role === "assistant" ? (
+                <div className="oa-widget-md">
+                  <Streamdown
+                    plugins={markdownPlugins}
+                    controls={codeBlockControls}
+                    translations={codeBlockTranslations}
+                    codeBlockMaxHeight={WIDGET_CODE_MAX_HEIGHT}
+                  >
+                    {m.content}
+                  </Streamdown>
+                  {m.streaming && <span className="oa-widget-caret" aria-hidden="true" />}
+                </div>
+              ) : (
+                m.content
+              )}
             </div>
           </div>
         ))}
@@ -360,6 +386,34 @@ html[data-oa-theme="dark"] .oa-widget-root{--oa-bg:#16181d;--oa-fg:#e8eaf0;--oa-
 .oa-widget-send{width:40px;height:40px;flex-shrink:0;border:none;border-radius:12px;background:var(--oa-primary);color:#fff;
   cursor:pointer;display:flex;align-items:center;justify-content:center}
 .oa-widget-send:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── 助手消息的 Markdown 排版（复用后台同一套 streamdown 渲染，这里只做窄面板适配）── */
+.oa-widget-bubble:has(.oa-widget-md){max-width:92%;padding:10px 13px}
+.oa-widget-md > :first-child{margin-top:0}
+.oa-widget-md > :last-child{margin-bottom:0}
+.oa-widget-md p{margin:6px 0}
+.oa-widget-md h1,.oa-widget-md h2,.oa-widget-md h3,.oa-widget-md h4{margin:12px 0 6px;line-height:1.35;font-weight:600}
+.oa-widget-md h1{font-size:17px}
+.oa-widget-md h2{font-size:16px}
+.oa-widget-md h3{font-size:15px}
+.oa-widget-md h4{font-size:14px}
+.oa-widget-md ul,.oa-widget-md ol{margin:6px 0;padding-left:20px}
+.oa-widget-md li{margin:3px 0}
+.oa-widget-md li > p{margin:0}
+.oa-widget-md a{color:var(--oa-primary);text-decoration:underline;text-underline-offset:2px}
+.oa-widget-md strong{font-weight:600}
+.oa-widget-md hr{border:none;border-top:1px solid var(--oa-line);margin:12px 0}
+.oa-widget-md blockquote{margin:8px 0;padding:2px 0 2px 10px;border-left:3px solid var(--oa-line);color:var(--oa-muted)}
+.oa-widget-md img{max-width:100%;height:auto;border-radius:8px}
+.oa-widget-md table{width:100%;border-collapse:collapse;margin:8px 0;font-size:13px;display:block;overflow-x:auto}
+.oa-widget-md th,.oa-widget-md td{border:1px solid var(--oa-line);padding:5px 8px;text-align:left}
+.oa-widget-md th{background:var(--oa-bubble);font-weight:600}
+.oa-widget-md code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;
+  background:color-mix(in srgb,var(--oa-fg) 9%,transparent);border-radius:5px;padding:1.5px 5px}
+.oa-widget-md pre code{background:transparent;padding:0;font-size:12.5px}
+.oa-widget-md [data-streamdown="code-block"]{margin:8px 0;border-radius:10px;max-width:100%;overflow:hidden}
+.oa-widget-md [data-streamdown="code-block"] pre{font-size:12.5px;line-height:1.55}
+.oa-widget-md [data-streamdown="code-block"] code{min-width:0;width:100%}
 .oa-widget-brand{flex-shrink:0;text-align:center;font-size:10.5px;color:var(--oa-muted);padding:0 0 8px}
 .oa-widget-brand a{color:inherit;text-decoration:none}
 `;

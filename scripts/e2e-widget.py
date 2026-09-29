@@ -127,6 +127,53 @@ with sync_playwright() as p:
     page.screenshot(path="/tmp/oa_widget_origin_blocked.png")
     api(f"/api/agents/{AGENT}/widget", "PUT", {"origins": ""})
 
+    print("\n【7】Markdown 渲染")
+    page2 = browser.new_page(viewport={"width": 1280, "height": 900})
+    # 清掉本 context 的访客会话 → 面板是全新对话，第一条助手消息就是这次问的
+    page2.goto(f"{BASE}/widget-demo.html?agent={AGENT}&key={KEY}", wait_until="domcontentloaded")
+    page2.evaluate("localStorage.clear()")
+    page2.reload(wait_until="networkidle")
+    page2.wait_for_timeout(1500)
+    page2.locator("button.oa-widget-launcher").click()
+    page2.wait_for_timeout(1200)
+    panel2 = page2.frame_locator("iframe.oa-widget-panel")
+    panel2.locator("textarea").fill(
+        "请直接输出 Markdown（不要用代码块把整个回答包起来）：一个三级标题、一个三项无序列表、"
+        "一句含行内代码 `npm run dev` 的话、一个 js 代码块（3 行）、一个 2x2 表格。不要多余解释。"
+    )
+    panel2.locator("textarea").press("Enter")
+    # 只看助手气泡（用户消息本身就 >30 字，用整段文本判稳会提前退出）
+    prev_text = ""
+    for _ in range(90):
+        page2.wait_for_timeout(1000)
+        reply = panel2.locator(".oa-widget-row.assistant .oa-widget-bubble").last.inner_text()
+        if len(reply) > 40 and reply == prev_text:
+            break
+        prev_text = reply
+    frame = [f for f in page2.frames if "/embed/chat" in f.url][0]
+    md = frame.evaluate("""() => {
+      const all = [...document.querySelectorAll('.oa-widget-md')];
+      const md = all[all.length - 1];
+      const body = document.querySelector('.oa-widget-body');
+      const cb = md && md.querySelector('[data-streamdown="code-block"]');
+      return md ? {
+        h3: !!md.querySelector('h3'),
+        listItems: md.querySelectorAll('ul li, ol li').length,
+        inlineCode: [...md.querySelectorAll('code')].filter((c) => !c.closest('pre')).length,
+        codeBlock: !!cb, codeBlockHeight: cb ? +cb.getBoundingClientRect().height.toFixed(1) : 0,
+        table: !!md.querySelector('table'),
+        rawMarkers: md.textContent.includes('## ') || md.textContent.includes('| ---'),
+        overflow: body.scrollWidth <= body.clientWidth,
+      } : null;
+    }""")
+    check("助手消息按 Markdown 渲染（不是纯文本）", bool(md and md["h3"] and md["inlineCode"] >= 1), json.dumps(md, ensure_ascii=False)[:110])
+    check("列表 / 代码块 / 表格都渲染出来", bool(md) and md["listItems"] >= 3 and md["codeBlock"] and md["table"], json.dumps(md, ensure_ascii=False)[:110])
+    check("代码块限高（≤400px，窄面板内滚动）", bool(md) and 0 < md["codeBlockHeight"] <= 400, f"height={md and md['codeBlockHeight']}")
+    check("无残留 markdown 标记", bool(md) and not md["rawMarkers"])
+    check("无横向溢出", bool(md) and md["overflow"])
+    page2.screenshot(path="/tmp/oa_widget_e2e_markdown.png")
+    page2.close()
+
     check("页面无预期外控制台错误", not [e for e in console_errors if "403" not in e and "Failed to load resource" not in e], console_errors[:2])
     browser.close()
 
