@@ -2,17 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeftIcon,
-  BotIcon,
-  ChevronRightIcon,
-  GlobeIcon,
-  MessageSquareIcon,
-  PanelLeftCloseIcon,
-  PanelLeftOpenIcon,
-  PlusIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { ArrowLeftIcon, BotIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { Session } from "@one-agent/core";
 
 interface SessionSidebarProps {
@@ -139,6 +129,8 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
       const session = await res.json();
       if (!res.ok) throw new Error(session.error ?? "创建失败");
       openSession(session.id);
+      // 通知侧边栏刷新列表：内联打开时不会换路由，新会话否则不会出现在左侧列表里
+      window.dispatchEvent(new Event("one-agent:sessions-changed"));
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     }
@@ -287,8 +279,6 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
                       className="sidebar-item sidebar-group-head"
                       title={isCollapsed ? "展开该 Agent 的对话" : "收起该 Agent 的对话"}
                     >
-                      <ChevronRightIcon size={14} className={`sidebar-chevron${isCollapsed ? "" : " open"}`} />
-                      <BotIcon size={15} className="sidebar-item-icon" />
                       <span className="sidebar-item-body">
                         <span className="sidebar-item-title">{agent.name}</span>
                         <span className="sidebar-item-sub">
@@ -324,11 +314,6 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
                                 }}
                                 className={`sidebar-item sidebar-subitem${activeSessionId === s.id ? " active" : ""}`}
                               >
-                                {s.widgetOrigin ? (
-                                  <GlobeIcon size={13} className="sidebar-item-icon" />
-                                ) : (
-                                  <MessageSquareIcon size={13} className="sidebar-item-icon" />
-                                )}
                                 <span className="sidebar-item-body">
                                   <span className="sidebar-item-title">{s.title}</span>
                                   <span className="sidebar-item-sub">
@@ -372,7 +357,6 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
                   }}
                   className={`sidebar-item${activeSessionId === s.id ? " active" : ""}`}
                 >
-                  <MessageSquareIcon size={15} className="sidebar-item-icon" />
                   <span className="sidebar-item-body">
                     <span className="sidebar-item-title">{title(s)}</span>
                     <span className="sidebar-item-sub">{tokenSummary(s)}</span>

@@ -63,16 +63,14 @@ with sync_playwright() as p:
     after = page.locator(".sidebar-subitem").count()
     check("收起后该 Agent 的对话不再显示", after < before, f"{before} → {after}")
     check("aria-expanded=false", first.get_attribute("aria-expanded") == "false", first.get_attribute("aria-expanded"))
-    rot = page.evaluate("getComputedStyle(document.querySelector('.sidebar-chevron')).transform")
-    check("箭头未旋转（收起态）", rot in ("none", "") or rot.startswith("matrix(1, 0, 0, 1"), rot)
+    check("行首无图标（收起态）", page.locator(".sidebar-group-head .sidebar-item-icon, .sidebar-group-head .sidebar-chevron").count() == 0)
 
     print("\n【3】再点一次 → 展开")
     first.click()
     page.wait_for_timeout(600)
     check("展开后对话回来", page.locator(".sidebar-subitem").count() == before, f"{page.locator('.sidebar-subitem').count()} / {before}")
     check("aria-expanded=true", first.get_attribute("aria-expanded") == "true")
-    rot2 = page.evaluate("getComputedStyle(document.querySelector('.sidebar-chevron')).transform")
-    check("箭头旋转 90°（展开态）", rot2 != rot, f"{rot} → {rot2}")
+    check("行首依然无图标", page.locator(".sidebar-item-icon, .sidebar-chevron").count() == 0)
 
     print("\n【4】收起状态刷新后保持")
     first.click()
@@ -85,35 +83,33 @@ with sync_playwright() as p:
     page.locator(".sidebar-group-head").first.click()
     page.wait_for_timeout(400)
 
-    print("\n【5】点对话 → 进入会话；点 ＋ → 新建")
-    target = page.locator(".sidebar-subitem").first
+    print("\n【5】点对话 → 右侧内联展示（/chat 不跳路由）；点 ＋ → 新建")
+    target = page.locator(".sidebar-subitem").filter(has_not_text="session-").first
     target_title = target.inner_text().split("\n")[0].strip()
     target.click()
-    try:
-        page.wait_for_url("**/chat/session/**", timeout=10000)
-    except Exception:
-        pass
-    page.wait_for_timeout(800)
-    check("点对话进入该会话", "/chat/session/" in page.url, f"{target_title} → {page.url}")
+    page.wait_for_timeout(2000)
+    check("点对话在右侧内联展示且不跳路由", page.url.rstrip("/").endswith("/chat") and page.locator(".chat-body").count() == 1,
+          f"{target_title} → {page.url}")
 
     page.goto(f"{BASE}/chat", wait_until="networkidle")
     page.wait_for_timeout(1500)
     count_before = page.locator(".sidebar-subitem").count()
     page.locator(".sidebar-group-head").first.hover()
     page.locator(".sidebar-group-head").first.locator("button").first.click()
-    try:
-        page.wait_for_url("**/chat/session/**", timeout=10000)
-    except Exception:
-        pass
-    new_sid = page.url.split("/")[-1] if "/chat/session/" in page.url else ""
-    check("点 ＋ 新建会话并进入", new_sid.startswith("session-"), page.url)
-    if new_sid.startswith("session-"):
-        # 先离开该会话页再删（否则页面会去拉一个已被删除的会话 → 预期 404）
-        page.goto(f"{BASE}/chat", wait_until="networkidle")
-        page.wait_for_timeout(800)
-        api(f"/api/sessions/{new_sid}", "DELETE")
-        print(f"    （已清理新建的空会话 {new_sid}）")
-        errors.clear()
+    page.wait_for_timeout(2200)
+    check("点 ＋ 新建会话并在右侧就地打开", page.url.rstrip("/").endswith("/chat") and page.locator(".chat-body").count() == 1, page.url)
+    check("新会话出现在侧边栏", page.locator(".sidebar-subitem").count() == count_before + 1,
+          f"{count_before} → {page.locator('.sidebar-subitem').count()}")
+    # 清理刚建的空会话：先取消选中再删
+    _, rows_now = api("/api/sessions?summary=1")
+    empties = [s["id"] for s in rows_now if s["messageCount"] == 0]
+    for sid in empties:
+        api(f"/api/sessions/{sid}", "DELETE")
+    if empties:
+        print(f"    （已清理 {len(empties)} 条空会话）")
+    page.goto(f"{BASE}/chat", wait_until="networkidle")
+    page.wait_for_timeout(800)
+    errors.clear()
 
     print("\n【6】agent 上下文页行为未变")
     page.goto(f"{BASE}/chat/agent/agent-shop-cs", wait_until="networkidle")

@@ -41,7 +41,10 @@ with sync_playwright() as p:
     check("右侧显示空状态引导", "点任意一条即可在右侧查看" in page.inner_text(".empty-state"), page.inner_text(".empty-state")[:60])
 
     print("\n【2】点侧边栏里的对话 → 右侧内联展示，不跳路由")
-    target = page.locator(".sidebar-subitem").first
+    # 选一条**有内容**的对话（标题不是 session-xxx 的裸 id）
+    target = page.locator(".sidebar-subitem").filter(has_not_text="session-").first
+    if target.count() == 0:
+        target = page.locator(".sidebar-subitem").first
     title = target.inner_text().split("\n")[0].strip()
     target.click()
     page.wait_for_timeout(2500)
@@ -54,7 +57,9 @@ with sync_playwright() as p:
     page.screenshot(path="/tmp/oa_chat_inline.png")
 
     print("\n【3】切到另一条对话")
-    second = page.locator(".sidebar-subitem").nth(1)
+    second = page.locator(".sidebar-subitem").filter(has_not_text="session-").nth(1)
+    if second.count() == 0:
+        second = page.locator(".sidebar-subitem").nth(1)
     t2 = second.inner_text().split("\n")[0].strip()
     second.click()
     page.wait_for_timeout(2500)
