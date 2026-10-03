@@ -91,28 +91,37 @@ with sync_playwright() as p:
 
     page.screenshot(path="/tmp/oa_providers_list.png", full_page=True)
 
-    # 新建
+    # 新建（弹窗）
     page.get_by_text("＋ 新建供应商").click()
-    page.locator(".panel input").nth(0).fill("UI 建的供应商")
-    page.locator(".panel input").nth(1).fill("https://ui.example.com/v1")
-    page.locator(".panel input[type=password]").fill("sk-ui-key")
-    page.locator(".panel textarea").fill("ui-model-1\nui-model-2")
+    page.wait_for_timeout(700)
+    dialog = page.locator(".ui-dialog-content")
+    check("新建走弹窗", dialog.count() == 1 and "新建供应商" in dialog.inner_text(), dialog.inner_text().split("\n")[0] if dialog.count() else "无")
+    dialog.locator("input").nth(0).fill("UI 建的供应商")
+    dialog.locator("input").nth(1).fill("https://ui.example.com/v1")
+    dialog.locator("input[type=password]").fill("sk-ui-key")
+    dialog.locator("textarea").first.fill("ui-model-1\nui-model-2")
     page.screenshot(path="/tmp/oa_providers_form.png", full_page=True)
-    page.get_by_role("button", name="保存").click()
-    page.wait_for_timeout(1200)
+    dialog.get_by_role("button", name="保存").click()
+    page.wait_for_timeout(1500)
+    check("保存后弹窗关闭", page.locator(".ui-dialog-content").count() == 0)
     check("新建后列表出现新卡片", page.locator(".card", has_text="UI 建的供应商").count() == 1)
     check("卡片显示模型数量与默认模型", "模型 2 个" in page.locator(".card", has_text="UI 建的供应商").inner_text())
 
-    # 编辑：密钥留空 = 不改
+    # 编辑：弹窗 + 密钥留空 = 不改
     page.locator(".card", has_text="UI 建的供应商").get_by_role("button", name="编辑").click()
-    page.wait_for_timeout(800)
-    check("编辑时密钥不回填（避免暴露）", page.locator(".panel input[type=password]").input_value() == "")
-    check("编辑时显示「已保存」占位", "已保存" in (page.locator(".panel input[type=password]").get_attribute("placeholder") or ""), page.locator(".panel input[type=password]").get_attribute("placeholder"))
-    page.locator(".panel input").nth(0).fill("UI 建的供应商（改）")
-    page.get_by_role("button", name="保存").click()
-    page.wait_for_timeout(1200)
+    page.wait_for_timeout(900)
+    dialog = page.locator(".ui-dialog-content")
+    check("编辑走弹窗", dialog.count() == 1 and "编辑供应商" in dialog.inner_text(), dialog.inner_text().split("\n")[0] if dialog.count() else "无")
+    check("编辑时密钥不回填（避免暴露）", dialog.locator("input[type=password]").input_value() == "")
+    check("编辑时显示「已保存」占位", "已保存" in (dialog.locator("input[type=password]").get_attribute("placeholder") or ""), dialog.locator("input[type=password]").get_attribute("placeholder"))
+    check("字段已回填（名称/地址/模型）",
+          dialog.locator("input").nth(0).input_value() == "UI 建的供应商" and "ui-model-1" in dialog.locator("textarea").first.input_value(),
+          dialog.locator("input").nth(0).input_value())
+    dialog.locator("input").nth(0).fill("UI 建的供应商（改）")
+    dialog.get_by_role("button", name="保存").click()
+    page.wait_for_timeout(1500)
     row = page.locator(".card", has_text="UI 建的供应商（改）")
-    check("改名生效", row.count() == 1)
+    check("改名生效且弹窗已关", row.count() == 1 and page.locator(".ui-dialog-content").count() == 0)
     check("留空保存后密钥仍在", "已配密钥" in row.inner_text(), row.inner_text().split("\n")[1][:80])
 
     # 删除被引用的 → 报错横幅
