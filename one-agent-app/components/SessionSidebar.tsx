@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, BotIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  BotIcon,
+  ChevronRightIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { Session } from "@one-agent/core";
 
 interface SessionSidebarProps {
@@ -279,6 +287,7 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
                       className="sidebar-item sidebar-group-head"
                       title={isCollapsed ? "展开该 Agent 的对话" : "收起该 Agent 的对话"}
                     >
+                      <ChevronRightIcon size={14} className={`sidebar-chevron${isCollapsed ? "" : " open"}`} />
                       <span className="sidebar-item-body">
                         <span className="sidebar-item-title">{agent.name}</span>
                         <span className="sidebar-item-sub">

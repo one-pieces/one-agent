@@ -282,8 +282,17 @@ code {
 /* /chat 首页的 Agent 分组：Agent 行是收起/展开开关，展开后缩进列出其对话 */
 .sidebar-group-head {
   align-items: center;
-  /* 去掉行首图标后不再需要图标列占位 */
-  padding-left: 10px;
+}
+
+/* 展开箭头（唯一的行首图标：它是收起/展开的控件，不是装饰） */
+.sidebar-chevron {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 0.16s ease;
+}
+
+.sidebar-chevron.open {
+  transform: rotate(90deg);
 }
 
 /* 注意：既有的 `.sidebar-list ul` / `.sidebar-item-title` 特异性为 0-1-1 / 0-2-0，
