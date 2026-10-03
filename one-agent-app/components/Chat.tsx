@@ -577,15 +577,30 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
             </button>
           )}
         </div>
-        {/* 输入框下方：靠左的会话信息行（token 用量）。这一行始终占位，统计出现时不会顶动布局 */}
+        {/* 输入框下方：靠左的会话信息行（token 用量）。这一行始终占位，统计出现时不会顶动布局。
+            用文字标签而不是 ↑↓◎＋ 符号，避免要对照说明才知道含义 */}
         <div className="chat-footer-meta">
           {(tokenUsage.input > 0 || tokenUsage.output > 0) && (
-            <span className="token-badge" title="本会话累计 token 用量（◎ 缓存命中 / ＋ 缓存写入）">
-              <span className="token-stat">↑{tokenUsage.input.toLocaleString()}</span>
-              <span className="token-stat">↓{tokenUsage.output.toLocaleString()}</span>
-              {tokenUsage.cached > 0 && <span className="token-stat">◎{tokenUsage.cached.toLocaleString()}</span>}
+            <span className="token-badge" title="本会话累计 token 用量">
+              <span className="token-stat">
+                <span className="token-stat-label">输入</span>{" "}
+                {tokenUsage.input.toLocaleString()}
+              </span>
+              <span className="token-stat">
+                <span className="token-stat-label">输出</span>{" "}
+                {tokenUsage.output.toLocaleString()}
+              </span>
+              {tokenUsage.cached > 0 && (
+                <span className="token-stat">
+                  <span className="token-stat-label">缓存命中</span>{" "}
+                  {tokenUsage.cached.toLocaleString()}
+                </span>
+              )}
               {tokenUsage.cacheCreation > 0 && (
-                <span className="token-stat">＋{tokenUsage.cacheCreation.toLocaleString()}</span>
+                <span className="token-stat">
+                  <span className="token-stat-label">缓存写入</span>{" "}
+                  {tokenUsage.cacheCreation.toLocaleString()}
+                </span>
               )}
             </span>
           )}

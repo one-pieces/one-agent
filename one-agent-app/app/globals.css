@@ -428,6 +428,10 @@ code {
   white-space: nowrap;
 }
 
+.token-stat-label {
+  color: color-mix(in srgb, var(--foreground) 62%, transparent);
+}
+
 .token-stat {
   font-variant-numeric: tabular-nums;
 }

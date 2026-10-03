@@ -168,22 +168,14 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
     return "新对话";
   };
 
-  /** 会话行副标题：消息条数（+ 输入/输出 token；**不展示缓存数据**） */
+  /** 会话行副标题：只显示消息条数（token 统计在输入框下方，不在侧边栏重复） */
   const sessionSubLine = (s: Session): string => {
     const count = s.messages.filter((m) => (m.role === "user" || m.role === "assistant") && !m.synthetic).length;
-    const u = (s.meta as { tokenUsage?: { inputTokens?: number; outputTokens?: number } } | undefined)?.tokenUsage;
-    const base = `${count} 条消息`;
-    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return base;
-    return `${base} · ↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
+    return `${count} 条消息`;
   };
 
-  /** 平铺模式的行副标题：消息条数（+ 输入/输出 token；**不展示缓存数据**） */
-  const summaryLine = (s: SessionSummary): string => {
-    const base = `${s.messageCount} 条消息`;
-    const u = s.tokenUsage;
-    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return base;
-    return `${base} · ↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
-  };
+  /** 平铺模式的行副标题：只显示消息条数 */
+  const summaryLine = (s: SessionSummary): string => `${s.messageCount} 条消息`;
 
   /** /chat 首页：按 Agent 分组（最近有对话的排前面，组内按最后活动倒序） */
   const groups = useMemo(() => {

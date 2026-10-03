@@ -116,6 +116,26 @@ with sync_playwright() as p:
     check("URL 仍是 /chat", page.url.rstrip("/").endswith("/chat"), page.url)
     check("临时会话已从侧边栏消失", page.locator(".sidebar-subitem", has_text="收到").count() == 0)
 
+    print("\n【7b】输入框下方的统计用文字标签（不是 ↑↓◎＋ 符号）")
+    # 挑一个真的有用量的会话
+    _, rows_now = api("/api/sessions?summary=1")
+    cand2 = next((s for s in rows_now if s.get("tokenUsage")), None)
+    if cand2:
+        page.goto(f"{BASE}/chat/session/{cand2['id']}", wait_until="networkidle")
+        page.wait_for_timeout(2200)
+    badge = page.locator(".token-badge")
+    if badge.count() > 0:
+        txt = badge.inner_text().replace("\n", " ")
+        check("统计用「输入/输出」等文字", ("输入" in txt and "输出" in txt), txt)
+        check("不含 ↑ ↓ ◎ ＋ 符号", not any(s in txt for s in ["↑", "↓", "◎", "＋"]), txt)
+        m = page.evaluate("""() => {
+          const b = document.querySelector('.token-badge'), f = document.querySelector('.chat-footer-meta');
+          return { overflows: b.scrollWidth > f.clientWidth + 1 };
+        }""")
+        check("统计行未溢出", not m["overflows"])
+    else:
+        print("    （该会话无 token 统计，跳过）")
+
     print("\n【7】深链页面（/chat/session/…）仍然可用")
     sid = [s["id"] for s in api("/api/sessions?agentId=agent-shop-cs")[1]][0]
     page.goto(f"{BASE}/chat/session/{sid}", wait_until="networkidle")

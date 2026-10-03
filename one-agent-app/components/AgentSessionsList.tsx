@@ -124,7 +124,12 @@ export default function AgentSessionsList({ agentId, rows }: { agentId: string; 
               {r.lastSnippet && <div className="session-row-snippet">{r.lastSnippet}</div>}
               <div className="card-sub session-row-meta">
                 <code>{r.id}</code> · {r.messageCount} 条消息（用户 {r.userMessageCount}） · 最后活动 {formatTime(r.updatedAt)}
-                {r.inputTokens + r.outputTokens > 0 && <> · ↑{r.inputTokens.toLocaleString()} ↓{r.outputTokens.toLocaleString()}</>}
+                {r.inputTokens + r.outputTokens > 0 && (
+                  <>
+                    {" "}
+                    · 输入 {r.inputTokens.toLocaleString()} / 输出 {r.outputTokens.toLocaleString()}
+                  </>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", gap: 8, flexShrink: 0, alignItems: "center" }}>

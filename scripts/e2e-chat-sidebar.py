@@ -63,6 +63,7 @@ with sync_playwright() as p:
     check("每行都显示「N 条消息」", len(subs) > 0 and all(re.search(r"\d+\s*条消息", s) for s in subs), f"{len(subs)} 行；示例 {subs[:2]}")
     sidebar_text = page.locator(".sidebar").inner_text()
     check("侧边栏不展示缓存数据（◎/＋/缓存）", "◎" not in sidebar_text and "＋" not in sidebar_text and "缓存" not in sidebar_text)
+    check("侧边栏行只有消息条数（无 ↑/↓ token 统计）", "↑" not in sidebar_text and "↓" not in sidebar_text)
 
     print("\n【2】点 Agent 行 → 收起")
     first = heads.first
