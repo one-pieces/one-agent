@@ -1,5 +1,6 @@
 """验证 /chat 侧边栏：所有 Agent 的对话平铺 + 点击 Agent 收起/展开。"""
 import json
+import re
 import urllib.request
 
 from playwright.sync_api import sync_playwright
@@ -54,6 +55,15 @@ with sync_playwright() as p:
     check("客服访客会话有标记", page.locator(".sidebar-subitem", has_text="客服访客").count() >= 1)
     page.screenshot(path="/tmp/oa_chat_sidebar_expanded.png")
 
+    print("\n【1b】标题与副标题：新会话=「新对话」、每行显示消息条数、不展示缓存数据")
+    titles = page.evaluate("[...document.querySelectorAll('.sidebar-subitem .sidebar-item-title')].map(e => e.textContent.trim())")
+    check("没有任何行用 session id 当标题", not any(t.startswith("session-") for t in titles),
+          [t for t in titles if t.startswith("session-")][:3])
+    subs = page.evaluate("[...document.querySelectorAll('.sidebar-subitem .sidebar-item-sub')].map(e => e.textContent.trim())")
+    check("每行都显示「N 条消息」", len(subs) > 0 and all(re.search(r"\d+\s*条消息", s) for s in subs), f"{len(subs)} 行；示例 {subs[:2]}")
+    sidebar_text = page.locator(".sidebar").inner_text()
+    check("侧边栏不展示缓存数据（◎/＋/缓存）", "◎" not in sidebar_text and "＋" not in sidebar_text and "缓存" not in sidebar_text)
+
     print("\n【2】点 Agent 行 → 收起")
     first = heads.first
     first_name = first.inner_text().split("\n")[0].strip()
@@ -88,7 +98,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(400)
 
     print("\n【5】点对话 → 右侧内联展示（/chat 不跳路由）；点 ＋ → 新建")
-    target = page.locator(".sidebar-subitem").filter(has_not_text="session-").first
+    target = page.locator(".sidebar-subitem").filter(has_not_text="0 条消息").first
     target_title = target.inner_text().split("\n")[0].strip()
     target.click()
     page.wait_for_timeout(2000)

@@ -6,13 +6,13 @@ import { widgetMetaOf } from "@/lib/widget";
 
 export const dynamic = "force-dynamic";
 
-/** 会话里可读的标题：meta.title（自动生成）→ 第一条用户消息 → 会话 id */
-function sessionTitle(messages: Message[], fallback: string, metaTitle?: string): string {
+/** 会话里可读的标题：meta.title（自动生成）→ 第一条用户消息 → 「新对话」（不拿 session id 当标题） */
+function sessionTitle(messages: Message[], metaTitle?: string): string {
   if (metaTitle?.trim()) return metaTitle.trim();
   const firstUser = messages.find((m) => m.role === "user" && !m.synthetic && (m.content ?? "").trim());
   const text = firstUser?.content?.trim();
   if (text) return text.length > 40 ? `${text.slice(0, 40)}…` : text;
-  return fallback;
+  return "新对话";
 }
 
 /**
@@ -34,7 +34,7 @@ export default async function AgentSessionsPage({ params }: { params: Promise<{ 
       const last = visible[visible.length - 1];
       return {
         id: s.id,
-        title: sessionTitle(s.messages, s.id, meta.title),
+        title: sessionTitle(s.messages, meta.title),
         kind: visitor ? ("visitor" as const) : ("internal" as const),
         origin: visitor?.origin ?? null,
         userAgent: visitor?.userAgent ?? null,

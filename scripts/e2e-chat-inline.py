@@ -41,8 +41,8 @@ with sync_playwright() as p:
     check("右侧显示空状态引导", "点任意一条即可在右侧查看" in page.inner_text(".empty-state"), page.inner_text(".empty-state")[:60])
 
     print("\n【2】点侧边栏里的对话 → 右侧内联展示，不跳路由")
-    # 选一条**有内容**的对话（标题不是 session-xxx 的裸 id）
-    target = page.locator(".sidebar-subitem").filter(has_not_text="session-").first
+    # 选一条**有内容**的对话（副标题含「N 条消息」且不是 0 条）
+    target = page.locator(".sidebar-subitem").filter(has_not_text="0 条消息").first
     if target.count() == 0:
         target = page.locator(".sidebar-subitem").first
     title = target.inner_text().split("\n")[0].strip()
@@ -52,12 +52,12 @@ with sync_playwright() as p:
     check("右侧渲染出对话正文（.chat-body 存在）", page.locator(".chat-body").count() == 1)
     check("右侧显示的是被点的那条对话", title[:8] in page.inner_text(".chat-main"), f"标题={title[:20]}")
     check("空状态已消失", page.locator(".empty-state").count() == 0)
-    check("该行在侧边栏高亮", "active" in (page.locator(".sidebar-subitem").first.get_attribute("class") or ""))
+    check("该行在侧边栏高亮", "active" in (target.get_attribute("class") or ""), target.get_attribute("class"))
     check("输入框可用", page.locator(".chat-main textarea").count() == 1)
     page.screenshot(path="/tmp/oa_chat_inline.png")
 
     print("\n【3】切到另一条对话")
-    second = page.locator(".sidebar-subitem").filter(has_not_text="session-").nth(1)
+    second = page.locator(".sidebar-subitem").filter(has_not_text="0 条消息").nth(1)
     if second.count() == 0:
         second = page.locator(".sidebar-subitem").nth(1)
     t2 = second.inner_text().split("\n")[0].strip()
@@ -77,8 +77,10 @@ with sync_playwright() as p:
     print(f"    （新建临时会话 {temp_id}）")
     page.reload(wait_until="networkidle")
     page.wait_for_timeout(2200)
-    row = page.locator(".sidebar-subitem", has_text=temp_id)
-    check("新会话出现在侧边栏", row.count() == 1)
+    # 新会话标题是「新对话」（不显示 session id）；刚建的最活跃 → 排在第一行
+    row = page.locator(".sidebar-subitem").first
+    check("新会话出现在侧边栏且标题为「新对话」", "新对话" in row.inner_text() and temp_id not in row.inner_text(),
+          row.inner_text().replace(chr(10), " · ")[:50])
     row.click()
     page.wait_for_timeout(2500)
     check("点它同样内联展示、不跳路由", page.url.rstrip("/").endswith("/chat") and page.locator(".chat-body").count() == 1, page.url)
@@ -104,15 +106,15 @@ with sync_playwright() as p:
 
     print("\n【6】删除当前打开的对话 → 右侧回到空状态")
     page.on("dialog", lambda d: d.accept())
-    target_row = page.locator(".sidebar-subitem", has_text=temp_id)
+    target_row = page.locator(".sidebar-subitem", has_text="收到")   # 聊过之后标题变成首条用户消息
     if target_row.count() == 0:
-        target_row = page.locator(".sidebar-subitem", has_text="收到")
+        target_row = page.locator(".sidebar-subitem").first
     target_row.first.hover()
     target_row.first.locator("button").click()
     page.wait_for_timeout(2500)
     check("删除后右侧回到空状态", page.locator(".empty-state").count() == 1, f"chat-body={page.locator('.chat-body').count()}")
     check("URL 仍是 /chat", page.url.rstrip("/").endswith("/chat"), page.url)
-    check("临时会话已从侧边栏消失", page.locator(".sidebar-subitem", has_text=temp_id).count() == 0)
+    check("临时会话已从侧边栏消失", page.locator(".sidebar-subitem", has_text="收到").count() == 0)
 
     print("\n【7】深链页面（/chat/session/…）仍然可用")
     sid = [s["id"] for s in api("/api/sessions?agentId=agent-shop-cs")[1]][0]

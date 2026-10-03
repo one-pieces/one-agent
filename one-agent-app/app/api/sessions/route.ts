@@ -20,7 +20,8 @@ function summarize(sessions: Awaited<ReturnType<typeof kernel.listSessions>>, ag
       id: s.id,
       agentId: s.agentId,
       agentName: agentNames.get(s.agentId) ?? s.agentId,
-      title: (meta.title ?? "").trim() || fallbackTitle || s.id,
+      // 还没有内容的新会话不拿 session id 当标题
+      title: (meta.title ?? "").trim() || fallbackTitle || "新对话",
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       messageCount: visible.length,

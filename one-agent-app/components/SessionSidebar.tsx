@@ -158,25 +158,31 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
     }
   };
 
+  /** 会话标题：meta.title → 首条用户消息 → 「新对话」（不显示 session id） */
   const title = (s: Session): string => {
     const t = (s.meta as { title?: string } | undefined)?.title;
-    return t && t.length > 0 ? t : s.id;
+    if (t && t.length > 0) return t;
+    const firstUser = s.messages.find((m) => m.role === "user" && !m.synthetic && (m.content ?? "").trim());
+    const text = firstUser?.content?.trim();
+    if (text) return text.length > 40 ? `${text.slice(0, 40)}…` : text;
+    return "新对话";
   };
 
-  /** 会话 token 摘要（与 Chat.tsx token-badge 一致：↑输入 ↓输出 ◎缓存命中 ＋缓存写入） */
-  const tokenSummary = (s: Session): string => {
-    const u = (s.meta as { tokenUsage?: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; cacheCreationTokens?: number } } | undefined)?.tokenUsage;
-    if (!u || (u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0) return "暂无 token";
-    const parts = [`↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`];
-    if ((u.cachedTokens ?? 0) > 0) parts.push(`◎${(u.cachedTokens ?? 0).toLocaleString()}`);
-    if ((u.cacheCreationTokens ?? 0) > 0) parts.push(`＋${(u.cacheCreationTokens ?? 0).toLocaleString()}`);
-    return parts.join(" ");
+  /** 会话行副标题：消息条数（+ 输入/输出 token；**不展示缓存数据**） */
+  const sessionSubLine = (s: Session): string => {
+    const count = s.messages.filter((m) => (m.role === "user" || m.role === "assistant") && !m.synthetic).length;
+    const u = (s.meta as { tokenUsage?: { inputTokens?: number; outputTokens?: number } } | undefined)?.tokenUsage;
+    const base = `${count} 条消息`;
+    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return base;
+    return `${base} · ↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
   };
 
+  /** 平铺模式的行副标题：消息条数（+ 输入/输出 token；**不展示缓存数据**） */
   const summaryLine = (s: SessionSummary): string => {
+    const base = `${s.messageCount} 条消息`;
     const u = s.tokenUsage;
-    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return `${s.messageCount} 条消息`;
-    return `↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
+    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return base;
+    return `${base} · ↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
   };
 
   /** /chat 首页：按 Agent 分组（最近有对话的排前面，组内按最后活动倒序） */
@@ -368,7 +374,7 @@ export default function SessionSidebar({ agentId, activeSessionId, onOpenSession
                 >
                   <span className="sidebar-item-body">
                     <span className="sidebar-item-title">{title(s)}</span>
-                    <span className="sidebar-item-sub">{tokenSummary(s)}</span>
+                    <span className="sidebar-item-sub">{sessionSubLine(s)}</span>
                   </span>
                   <button
                     className="sidebar-item-delete"
