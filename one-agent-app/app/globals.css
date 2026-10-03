@@ -279,6 +279,50 @@ code {
   white-space: nowrap;
 }
 
+/* /chat 首页的 Agent 分组：Agent 行是收起/展开开关，展开后缩进列出其对话 */
+.sidebar-group-head {
+  align-items: center;
+}
+
+.sidebar-chevron {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  transition: transform 0.16s ease;
+}
+
+.sidebar-chevron.open {
+  transform: rotate(90deg);
+}
+
+/* 注意：既有的 `.sidebar-list ul` / `.sidebar-item-title` 特异性为 0-1-1 / 0-2-0，
+   这里必须带 .sidebar-list 前缀（0-2-1 / 0-3-0）才能压过它们 */
+.sidebar-list .sidebar-sublist {
+  list-style: none;
+  margin: 0 0 2px 15px;
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-list .sidebar-subitem {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+.sidebar-list .sidebar-subitem .sidebar-item-title {
+  font-size: 12.5px;
+}
+
+.sidebar-list .sidebar-subitem .sidebar-item-sub {
+  font-size: 11px;
+}
+
+.sidebar-list .sidebar-sub-empty {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  padding: 4px 10px 4px 24px;
+  list-style: none;
+}
+
 .sidebar-item-delete {
   background: transparent;
   border: none;

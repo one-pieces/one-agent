@@ -1,8 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeftIcon, BotIcon, MessageSquareIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  BotIcon,
+  ChevronRightIcon,
+  GlobeIcon,
+  MessageSquareIcon,
+  PanelLeftCloseIcon,
+  PanelLeftOpenIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { Session } from "@one-agent/core";
 
 interface SessionSidebarProps {
@@ -17,28 +27,68 @@ interface AgentListItem {
   tools: Array<{ name: string; enabled: boolean }>;
 }
 
-/** 会话侧边栏（方案 A：显示"当前 Agent"的会话；可折叠；无 Agent 时显示 Agent 列表） */
+/** /api/sessions?summary=1 的轻量行（不带 messages） */
+interface SessionSummary {
+  id: string;
+  agentId: string;
+  agentName: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  tokenUsage: { inputTokens?: number; outputTokens?: number; cachedTokens?: number; cacheCreationTokens?: number } | null;
+  /** 客服访客来源（内部会话为 null） */
+  widgetOrigin: string | null;
+}
+
+const COLLAPSE_KEY = "one-agent:sidebar-collapsed-agents";
+
+function readCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(COLLAPSE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * 会话侧边栏
+ * - 有 agentId（/chat/agent/*、/chat/session/*）：显示该 Agent 的会话列表
+ * - 无 agentId（/chat 首页）：把**所有 Agent 的对话平铺**成可折叠分组 —— 点 Agent 行收起/展开，
+ *   展开后是该 Agent 的对话（含客服访客会话，带来源标记）
+ */
 export default function SessionSidebar({ agentId, activeSessionId }: SessionSidebarProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [agents, setAgents] = useState<AgentListItem[]>([]);
   const [agentName, setAgentName] = useState<string | null>(null);
+  /** /chat 首页用：所有会话的轻量摘要 */
+  const [summaries, setSummaries] = useState<SessionSummary[]>([]);
+  /** 各 Agent 分组的收起状态（记忆在 localStorage） */
+  const [collapsedAgents, setCollapsedAgents] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setCollapsedAgents(readCollapsed());
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!agentId) {
       setSessions([]);
       setAgentName(null);
-      // 无 Agent 上下文时拉取 Agent 列表（/chat 首页）
+      // /chat 首页：Agent 列表 + 全量会话摘要（并发拉取）
       try {
-        const res = await fetch("/api/agents");
-        if (res.ok) setAgents(await res.json());
+        const [agentsRes, sessionsRes] = await Promise.all([fetch("/api/agents"), fetch("/api/sessions?summary=1")]);
+        if (agentsRes.ok) setAgents(await agentsRes.json());
+        if (sessionsRes.ok) setSummaries(await sessionsRes.json());
       } catch {
         /* ignore */
       }
       return;
     }
     setAgents([]);
+    setSummaries([]);
     // 拉取 Agent 配置用于侧边栏标题（显示名字而非 id）
     try {
       const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}`);
@@ -64,13 +114,14 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
     return () => window.removeEventListener("one-agent:sessions-changed", handler);
   }, [refresh]);
 
-  const handleNew = async () => {
-    if (!agentId) return;
+  const handleNew = async (targetAgentId?: string) => {
+    const id = targetAgentId ?? agentId;
+    if (!id) return;
     try {
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ agentId }),
+        body: JSON.stringify({ agentId: id }),
       });
       const session = await res.json();
       if (!res.ok) throw new Error(session.error ?? "创建失败");
@@ -106,6 +157,46 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
     return parts.join(" ");
   };
 
+  const summaryLine = (s: SessionSummary): string => {
+    const u = s.tokenUsage;
+    if (!u || ((u.inputTokens ?? 0) === 0 && (u.outputTokens ?? 0) === 0)) return `${s.messageCount} 条消息`;
+    return `↑${(u.inputTokens ?? 0).toLocaleString()} ↓${(u.outputTokens ?? 0).toLocaleString()}`;
+  };
+
+  /** /chat 首页：按 Agent 分组（最近有对话的排前面，组内按最后活动倒序） */
+  const groups = useMemo(() => {
+    const byAgent = new Map<string, SessionSummary[]>();
+    for (const s of summaries) {
+      const list = byAgent.get(s.agentId) ?? [];
+      list.push(s);
+      byAgent.set(s.agentId, list);
+    }
+    for (const list of byAgent.values()) list.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    return agents
+      .map((a) => {
+        const list = byAgent.get(a.id) ?? [];
+        return { agent: a, sessions: list, lastAt: list[0]?.updatedAt ?? "" };
+      })
+      .sort((x, y) => {
+        if (x.lastAt === y.lastAt) return x.agent.name.localeCompare(y.agent.name, "zh-CN");
+        if (!x.lastAt) return 1;
+        if (!y.lastAt) return -1;
+        return x.lastAt < y.lastAt ? 1 : -1;
+      });
+  }, [agents, summaries]);
+
+  const toggleAgent = (id: string) => {
+    setCollapsedAgents((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        /* 隐私模式忽略 */
+      }
+      return next;
+    });
+  };
+
   if (collapsed) {
     return (
       <div className="sidebar sidebar-collapsed">
@@ -137,9 +228,7 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
               <ArrowLeftIcon size={16} />
             </button>
           )}
-          <span className="sidebar-title">
-            {agentId ? (agentName ?? agentId) : "会话 Agent"}
-          </span>
+          <span className="sidebar-title">{agentId ? (agentName ?? agentId) : "会话 Agent"}</span>
         </div>
         <div className="sidebar-header-actions">
           {agentId ? (
@@ -159,31 +248,97 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
 
       <div className="sidebar-list">
         {!agentId ? (
-          agents.length === 0 ? (
+          groups.length === 0 ? (
             <p className="sidebar-empty">还没有 Agent，去 Agents 页新建。</p>
           ) : (
             <ul>
-              {agents.map((a) => (
-                <li key={a.id}>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/chat/agent/${a.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") router.push(`/chat/agent/${a.id}`);
-                    }}
-                    className="sidebar-item"
-                  >
-                    <BotIcon size={15} className="sidebar-item-icon" />
-                    <span className="sidebar-item-body">
-                      <span className="sidebar-item-title">{a.name}</span>
-                      <span className="sidebar-item-sub">
-                        {a.model?.modelId ?? ""} · {a.tools?.filter((t) => t.enabled).length ?? 0} 个工具
+              {groups.map(({ agent, sessions: list }) => {
+                const isCollapsed = collapsedAgents[agent.id] === true;
+                return (
+                  <li key={agent.id}>
+                    {/* Agent 行本身是收起/展开开关 */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={!isCollapsed}
+                      onClick={() => toggleAgent(agent.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleAgent(agent.id);
+                        }
+                      }}
+                      className="sidebar-item sidebar-group-head"
+                      title={isCollapsed ? "展开该 Agent 的对话" : "收起该 Agent 的对话"}
+                    >
+                      <ChevronRightIcon size={14} className={`sidebar-chevron${isCollapsed ? "" : " open"}`} />
+                      <BotIcon size={15} className="sidebar-item-icon" />
+                      <span className="sidebar-item-body">
+                        <span className="sidebar-item-title">{agent.name}</span>
+                        <span className="sidebar-item-sub">
+                          {list.length > 0 ? `${list.length} 段对话` : "暂无对话"}
+                          {agent.model?.modelId ? ` · ${agent.model.modelId}` : ""}
+                        </span>
                       </span>
-                    </span>
-                  </div>
-                </li>
-              ))}
+                      <button
+                        className="sidebar-item-delete"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleNew(agent.id);
+                        }}
+                        title="与该 Agent 新建对话"
+                      >
+                        <PlusIcon size={13} />
+                      </button>
+                    </div>
+
+                    {!isCollapsed && (
+                      <ul className="sidebar-sublist">
+                        {list.length === 0 ? (
+                          <li className="sidebar-sub-empty">暂无对话</li>
+                        ) : (
+                          list.map((s) => (
+                            <li key={s.id}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => router.push(`/chat/session/${s.id}`)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") router.push(`/chat/session/${s.id}`);
+                                }}
+                                className={`sidebar-item sidebar-subitem${activeSessionId === s.id ? " active" : ""}`}
+                              >
+                                {s.widgetOrigin ? (
+                                  <GlobeIcon size={13} className="sidebar-item-icon" />
+                                ) : (
+                                  <MessageSquareIcon size={13} className="sidebar-item-icon" />
+                                )}
+                                <span className="sidebar-item-body">
+                                  <span className="sidebar-item-title">{s.title}</span>
+                                  <span className="sidebar-item-sub">
+                                    {s.widgetOrigin ? "客服访客 · " : ""}
+                                    {summaryLine(s)}
+                                  </span>
+                                </span>
+                                <button
+                                  className="sidebar-item-delete"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDelete(s.id);
+                                  }}
+                                  title="删除会话"
+                                >
+                                  <Trash2Icon size={13} />
+                                </button>
+                              </div>
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )
         ) : sessions.length === 0 ? (
@@ -225,7 +380,7 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
 
       <div className="sidebar-footer">
         <span className="sidebar-count">
-          {agentId ? `${sessions.length} 个会话` : `${agents.length} 个 Agent`}
+          {agentId ? `${sessions.length} 个会话` : `${agents.length} 个 Agent · ${summaries.length} 段对话`}
         </span>
       </div>
     </div>
