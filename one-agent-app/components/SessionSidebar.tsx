@@ -18,6 +18,13 @@ import type { Session } from "@one-agent/core";
 interface SessionSidebarProps {
   agentId: string | null;
   activeSessionId: string | null;
+  /**
+   * 宿主自定义"打开会话"的行为。返回 true = 已处理（例如 /chat 首页把对话内联渲染在右侧，不跳路由）；
+   * 返回 false/未提供 = 侧边栏自己 router.push 到 /chat/session/[id]。
+   */
+  onOpenSession?: (sessionId: string) => boolean;
+  /** 当前高亮的会话被删除时通知宿主（/chat 内联模式下需要清掉右侧） */
+  onSessionDeleted?: (sessionId: string) => void;
 }
 
 interface AgentListItem {
@@ -58,7 +65,7 @@ function readCollapsed(): Record<string, boolean> {
  * - 无 agentId（/chat 首页）：把**所有 Agent 的对话平铺**成可折叠分组 —— 点 Agent 行收起/展开，
  *   展开后是该 Agent 的对话（含客服访客会话，带来源标记）
  */
-export default function SessionSidebar({ agentId, activeSessionId }: SessionSidebarProps) {
+export default function SessionSidebar({ agentId, activeSessionId, onOpenSession, onSessionDeleted }: SessionSidebarProps) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -114,6 +121,12 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
     return () => window.removeEventListener("one-agent:sessions-changed", handler);
   }, [refresh]);
 
+  /** 打开会话：宿主能处理（内联展示）就不跳路由 */
+  const openSession = (sessionId: string) => {
+    if (onOpenSession?.(sessionId)) return;
+    router.push(`/chat/session/${sessionId}`);
+  };
+
   const handleNew = async (targetAgentId?: string) => {
     const id = targetAgentId ?? agentId;
     if (!id) return;
@@ -125,7 +138,7 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
       });
       const session = await res.json();
       if (!res.ok) throw new Error(session.error ?? "创建失败");
-      router.push(`/chat/session/${session.id}`);
+      openSession(session.id);
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
     }
@@ -136,7 +149,10 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
     try {
       await fetch(`/api/sessions/${id}`, { method: "DELETE" });
       await refresh();
-      if (activeSessionId === id) router.push(`/chat/agent/${agentId}`);
+      if (activeSessionId === id) {
+        if (onSessionDeleted) onSessionDeleted(id);
+        else router.push(`/chat/agent/${agentId}`);
+      }
     } catch {
       /* ignore */
     }
@@ -302,9 +318,9 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => router.push(`/chat/session/${s.id}`)}
+                                onClick={() => openSession(s.id)}
                                 onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") router.push(`/chat/session/${s.id}`);
+                                  if (e.key === "Enter" || e.key === " ") openSession(s.id);
                                 }}
                                 className={`sidebar-item sidebar-subitem${activeSessionId === s.id ? " active" : ""}`}
                               >
@@ -350,9 +366,9 @@ export default function SessionSidebar({ agentId, activeSessionId }: SessionSide
                 <div
                   role="button"
                   tabIndex={0}
-                  onClick={() => router.push(`/chat/session/${s.id}`)}
+                  onClick={() => openSession(s.id)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") router.push(`/chat/session/${s.id}`);
+                    if (e.key === "Enter" || e.key === " ") openSession(s.id);
                   }}
                   className={`sidebar-item${activeSessionId === s.id ? " active" : ""}`}
                 >
