@@ -29,6 +29,11 @@ def check(label, cond, detail=""):
 
 
 print("【1】API：列表 / 新建 / 编辑 / 删除")
+# 清理历史遗留的测试供应商（否则同名卡片会让定位器命中多个）
+for r in api("/api/providers")[1]:
+    if r["name"].startswith("UI 建的供应商"):
+        api(f"/api/providers/{r['id']}", "DELETE")
+
 st, provs = api("/api/providers")
 check("GET /api/providers 200", st == 200, f"status={st}")
 check("列表不带明文密钥", all("apiKey" not in p for p in provs), f"keys={[list(p.keys())[:3] for p in provs][:1]}")
@@ -91,49 +96,56 @@ with sync_playwright() as p:
 
     page.screenshot(path="/tmp/oa_providers_list.png", full_page=True)
 
-    # 新建（弹窗）
-    page.get_by_text("＋ 新建供应商").click()
+    # 新建（独立页面 /providers/new）
+    page.get_by_role("link", name="新建供应商").click()
+    page.wait_for_load_state("networkidle")
     page.wait_for_timeout(700)
-    dialog = page.locator(".ui-dialog-content")
-    check("新建走弹窗", dialog.count() == 1 and "新建供应商" in dialog.inner_text(), dialog.inner_text().split("\n")[0] if dialog.count() else "无")
-    dialog.locator("input").nth(0).fill("UI 建的供应商")
-    dialog.locator("input").nth(1).fill("https://ui.example.com/v1")
-    dialog.locator("input[type=password]").fill("sk-ui-key")
-    dialog.locator("textarea").first.fill("ui-model-1\nui-model-2")
+    check("新建走独立页面", page.url.endswith("/providers/new") and page.locator(".ui-dialog-content").count() == 0, page.url)
+    page.locator(".page input").nth(0).fill("UI 建的供应商")
+    page.locator(".page input").nth(1).fill("https://ui.example.com/v1")
+    page.locator(".page input[type=password]").fill("sk-ui-key")
+    page.locator(".page textarea").first.fill("ui-model-1\nui-model-2")
     page.screenshot(path="/tmp/oa_providers_form.png", full_page=True)
-    dialog.get_by_role("button", name="保存").click()
-    page.wait_for_timeout(1500)
-    check("保存后弹窗关闭", page.locator(".ui-dialog-content").count() == 0)
+    page.get_by_role("button", name="创建供应商").click()
+    try:
+        page.wait_for_url("**/providers", timeout=8000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1200)
     check("新建后列表出现新卡片", page.locator(".card", has_text="UI 建的供应商").count() == 1)
     check("卡片显示模型数量与默认模型", "模型 2 个" in page.locator(".card", has_text="UI 建的供应商").inner_text())
 
-    # 编辑：弹窗 + 密钥留空 = 不改
-    page.locator(".card", has_text="UI 建的供应商").get_by_role("button", name="编辑").click()
+    # 编辑：独立页面 + 密钥留空 = 不改
+    page.locator(".card", has_text="UI 建的供应商").get_by_role("link", name="编辑").click()
+    page.wait_for_load_state("networkidle")
     page.wait_for_timeout(900)
-    dialog = page.locator(".ui-dialog-content")
-    check("编辑走弹窗", dialog.count() == 1 and "编辑供应商" in dialog.inner_text(), dialog.inner_text().split("\n")[0] if dialog.count() else "无")
-    check("编辑时密钥不回填（避免暴露）", dialog.locator("input[type=password]").input_value() == "")
-    check("编辑时显示「已保存」占位", "已保存" in (dialog.locator("input[type=password]").get_attribute("placeholder") or ""), dialog.locator("input[type=password]").get_attribute("placeholder"))
+    check("编辑走独立页面", "/providers/" in page.url and page.locator(".ui-dialog-content").count() == 0, page.url)
+    check("编辑时密钥不回填（避免暴露）", page.locator(".page input[type=password]").input_value() == "")
+    check("编辑时显示「已保存」占位", "已保存" in (page.locator(".page input[type=password]").get_attribute("placeholder") or ""), page.locator(".page input[type=password]").get_attribute("placeholder"))
     check("字段已回填（名称/地址/模型）",
-          dialog.locator("input").nth(0).input_value() == "UI 建的供应商" and "ui-model-1" in dialog.locator("textarea").first.input_value(),
-          dialog.locator("input").nth(0).input_value())
-    dialog.locator("input").nth(0).fill("UI 建的供应商（改）")
-    dialog.get_by_role("button", name="保存").click()
-    page.wait_for_timeout(1500)
+          page.locator(".page input").nth(0).input_value() == "UI 建的供应商" and "ui-model-1" in page.locator(".page textarea").first.input_value(),
+          page.locator(".page input").nth(0).input_value())
+    page.locator(".page input").nth(0).fill("UI 建的供应商（改）")
+    page.get_by_role("button", name="保存修改").click()
+    try:
+        page.wait_for_url("**/providers", timeout=8000)
+    except Exception:
+        pass
+    page.wait_for_timeout(1200)
     row = page.locator(".card", has_text="UI 建的供应商（改）")
-    check("改名生效且弹窗已关", row.count() == 1 and page.locator(".ui-dialog-content").count() == 0)
+    check("改名生效且已回到列表页", row.count() == 1 and page.url.rstrip("/").endswith("/providers"))
     check("留空保存后密钥仍在", "已配密钥" in row.inner_text(), row.inner_text().split("\n")[1][:80])
 
     # 删除被引用的 → 报错横幅
     protected_name = [p for p in api("/api/providers")[1] if p["id"] == referenced][0]["name"]
-    page.locator(".card", has_text=protected_name).get_by_role("button").nth(1).click()
+    page.locator(".card", has_text=protected_name).locator("button.btn.danger").click()
     page.wait_for_timeout(1200)
     check("删除被引用供应商 → 页面报错且卡片仍在", page.locator(".error-banner").count() == 1 and page.locator(".card", has_text=protected_name).count() == 1,
           page.locator(".error-banner").inner_text()[:90] if page.locator(".error-banner").count() else "无横幅")
     page.screenshot(path="/tmp/oa_providers_delete_blocked.png", full_page=True)
 
     # 清理 UI 建的
-    page.locator(".card", has_text="UI 建的供应商（改）").get_by_role("button").nth(1).click()
+    page.locator(".card", has_text="UI 建的供应商（改）").locator("button.btn.danger").click()
     page.wait_for_timeout(1200)
     check("删除未被引用的供应商成功", page.locator(".card", has_text="UI 建的供应商（改）").count() == 0)
 
