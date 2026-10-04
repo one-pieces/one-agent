@@ -33,7 +33,7 @@ with sync_playwright() as p:
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
 
-    print("【1】侧边栏结构：标题 Agent / 知识库 / 横线 / 会话树 / 底部设置")
+    print("【1】侧边栏结构：会话树在主体，底部 亮色 / 知识库 / 设置")
     page.goto(f"{BASE}/chat", wait_until="networkidle")
     page.wait_for_timeout(1800)
     geo = page.evaluate("""() => {
@@ -43,15 +43,15 @@ with sync_playwright() as p:
       return {
         sidebar: box(sb) && { w: +box(sb).width.toFixed(1), x: box(sb).x, right: +box(sb).right.toFixed(1), h: +box(sb).height.toFixed(1) },
         shellDisplay: getComputedStyle(q('.app-shell')).display,
-        title: q('.app-sidebar-title')?.textContent.trim(),
-        titleBold: q('.app-sidebar-title') ? getComputedStyle(q('.app-sidebar-title')).fontWeight : null,
-        navs: [...document.querySelectorAll('.app-sidebar-nav-item')].map(e => e.textContent.trim()),
-        divider: box(q('.app-sidebar-divider')) && { y: +box(q('.app-sidebar-divider')).y.toFixed(1), w: +box(q('.app-sidebar-divider')).width.toFixed(1) },
-        titleY: box(q('.app-sidebar-title')) ? +box(q('.app-sidebar-title')).y.toFixed(1) : null,
-        navY: box(q('.app-sidebar-nav-item')) ? +box(q('.app-sidebar-nav-item')).y.toFixed(1) : null,
+        titleRows: document.querySelectorAll('.app-sidebar-title').length,
+        navRows: document.querySelectorAll('.app-sidebar-nav-item').length,
+        divider: document.querySelectorAll('.app-sidebar-divider').length,
+        sidebarY: +box(q('.app-sidebar')).y.toFixed(1),
+        firstGroupY: box(q('.sidebar-group-head')) ? +box(q('.sidebar-group-head')).y.toFixed(1) : null,
         treeY: box(q('.app-sidebar-tree')) ? +box(q('.app-sidebar-tree')).y.toFixed(1) : null,
         bottomY: box(q('.app-sidebar-bottom')) ? +box(q('.app-sidebar-bottom')).y.toFixed(1) : null,
         bottomItems: [...document.querySelectorAll('.app-sidebar-bottom-item')].map(e => e.textContent.trim()),
+        bottomYs: [...document.querySelectorAll('.app-sidebar-bottom-item')].map(e => +e.getBoundingClientRect().y.toFixed(1)),
         mainX: box(q('.app-main')) ? +box(q('.app-main')).x.toFixed(1) : null,
         mainW: box(q('.app-main')) ? +box(q('.app-main')).width.toFixed(1) : null,
         oldNav: document.querySelectorAll('.app-nav').length,
@@ -64,14 +64,19 @@ with sync_playwright() as p:
     check("侧边栏单列 300px，主区在右", geo["sidebar"]["w"] == 300 and geo["mainX"] == geo["sidebar"]["right"],
           f"sidebar={geo['sidebar']['w']} main.x={geo['mainX']} sidebar.right={geo['sidebar']['right']}")
     check("旧的 56px 图标导航栏已不存在", geo["oldNav"] == 0)
-    check("顶部标题 = Agent 且加粗", geo["title"] == "Agent" and int(geo["titleBold"] or 0) >= 600,
-          f"{geo['title']} / weight {geo['titleBold']}")
-    check("顶部导航项 = ['知识库']", geo["navs"] == ["知识库"], str(geo["navs"]))
-    check("顺序：标题 → 导航项 → 横线 → 会话树 → 底部",
-          geo["titleY"] < geo["navY"] < geo["divider"]["y"] < geo["treeY"] < geo["bottomY"],
-          f"{geo['titleY']} < {geo['navY']} < {geo['divider']['y']} < {geo['treeY']} < {geo['bottomY']}")
+    check("顶部的 Agent 标题已去掉", geo["titleRows"] == 0, f"命中 {geo['titleRows']} 个")
+    check("顶部不再有导航项与横线", geo["navRows"] == 0 and geo["divider"] == 0,
+          f"nav={geo['navRows']} divider={geo['divider']}")
+    check("会话树是侧边栏最上面的内容（紧贴侧边栏顶部）",
+          geo["firstGroupY"] is not None and geo["firstGroupY"] - geo["sidebarY"] < 60,
+          f"sidebar.y={geo['sidebarY']} 首个分组 y={geo['firstGroupY']}")
+    check("顺序：会话树 → 底部行", geo["treeY"] < geo["bottomY"], f"{geo['treeY']} < {geo['bottomY']}")
     check("会话树是 Agent 分组 + 缩进对话", geo["groups"] >= 2 and geo["subs"] >= 2, f"{geo['groups']} 组 / {geo['subs']} 条")
-    check("底部两项：亮色/暗色 + 设置", geo["bottomItems"][-1] == "设置" and len(geo["bottomItems"]) == 2, str(geo["bottomItems"]))
+    check("底部三项且依次为 亮色 / 知识库 / 设置",
+          geo["bottomItems"] == ["亮色", "知识库", "设置"] or geo["bottomItems"] == ["暗色", "知识库", "设置"],
+          str(geo["bottomItems"]))
+    check("知识库在设置上面（像素 y 更小）", geo["bottomItems"][-2] == "知识库" and geo["bottomItems"][-1] == "设置"
+          and geo["bottomYs"][-2] < geo["bottomYs"][-1], f"{geo['bottomYs']}")
     page.screenshot(path="/tmp/oa_new_sidebar_chat.png")
 
     print("\n【2】主区跟随导航：知识库")
@@ -80,7 +85,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(1500)
     check("主区显示知识库页（h1=知识库）", page.locator(".app-main h1").first.inner_text().strip() == "知识库",
           page.locator(".app-main h1").first.inner_text())
-    check("知识库导航项高亮", "active" in (page.locator(".app-sidebar-nav-item", has_text="知识库").get_attribute("class") or ""))
+    check("底部「知识库」高亮", "active" in (page.locator(".app-sidebar-bottom-item", has_text="知识库").get_attribute("class") or ""))
     check("侧边栏仍在（未随路由消失）", page.locator(".app-sidebar").count() == 1 and page.locator(".sidebar-group-head").count() >= 2)
     page.screenshot(path="/tmp/oa_new_sidebar_knowledge.png")
 
@@ -93,8 +98,8 @@ with sync_playwright() as p:
     check("底部「设置」高亮", "active" in (page.locator(".app-sidebar-bottom-item", has_text="设置").get_attribute("class") or ""))
 
     print("\n【4】点会话 → 主区就地打开（不跳路由）")
-    page.locator(".app-sidebar-title").click()
-    page.wait_for_url("**/chat", timeout=8000)
+    page.goto(f"{BASE}/chat", wait_until="networkidle")
+    page.wait_for_timeout(600)
     page.wait_for_timeout(1500)
     target = page.locator(".sidebar-subitem").filter(has_not_text="0 条消息").first
     if target.count() == 0:

@@ -40,7 +40,7 @@ pnpm run chat
 cd one-agent-app
 pnpm install
 pnpm run dev        # http://localhost:3000
-# 左侧单列侧边栏（顶部 Agent/知识库 + 中部会话树 + 底部设置）→ /chat 点会话就地打开 → 流式对话
+# 左侧单列侧边栏（会话树 + 底部 主题/知识库/设置）→ /chat 点会话就地打开 → 流式对话
 ```
 
 > ⚠️ **改动 `one-agent-core` 后必须重新 `NODE_ENV=development pnpm install`**：app 通过 pnpm `file:` 依赖引用 core，
@@ -48,7 +48,7 @@ pnpm run dev        # http://localhost:3000
 > `transpilePackages` 会编译这份副本）会**静默继续用旧代码**，表现为「改动不生效 / 类型找不到」。
 > 若改动未生效，先执行这条重装命令。
 
-UI：左侧单列侧边栏（顶部 `Agent` 标题 + 知识库导航，中部按 Agent 分组的会话树，底部主题切换 + 设置；供应商与日志收在设置里）+ 主区跟随导航（点会话就地打开对话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 消息删除。
+UI：左侧单列侧边栏（主体是按 Agent 分组的会话树，底部依次为主题切换 / 知识库 / 设置；供应商与日志收在设置里）+ 主区跟随导航（点会话就地打开对话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 消息删除。
 
 数据落在 `one-agent-app/data/`（agents 配置 + sessions 历史，SQLite，已 gitignore）。
 
@@ -65,7 +65,7 @@ UI：左侧单列侧边栏（顶部 `Agent` 标题 + 知识库导航，中部按
 - [x] UI 改造（对齐 eve-agent）：左侧图标导航 + 可折叠会话侧边栏（方案 A：当前 Agent 会话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 危险工具会话开关 + 消息删除 + 会话自动标题
 - [x] 知识库完整 RAG（对齐 eve-agent）：多文件上传（.txt/.md/.mdx）→ 每文件独立向量索引（none→building→done/error，SSE 进度）+ Transformers.js 本地向量化（BAAI/bge-m3，1024 维，hf-mirror 兜底）+ 混合检索（BM25+向量+RRF）+ 可选 cross-encoder 重排 + 向量索引/分块查看器 + `knowledge_search` 工具（Agent 按需调用）
 - [x] 模型供应商独立模块：`providers` 表 + `/settings/providers` 管理页（**入口在左侧导航底部的「设置」里**；kind/Base URL/API Key/模型清单，密钥 AES-256-GCM 加密）；Agent 只填 `providerId` 下拉选择，运行时解析 → 换密钥/换地址一次生效；老配置自动迁移
-- [x] 导航收敛：单列侧边栏 = 顶部「Agent（标题，→ 对话首页）+ 知识库」+ 中部会话树 + 底部「主题 / 设置」；供应商与请求日志收进 `/settings`（子导航 供应商 / 日志），旧地址 `/providers`、`/logs` 保留 307 重定向；主区始终渲染当前导航项/当前会话的内容
+- [x] 导航收敛：单列侧边栏 = 会话树（主体）+ 底部「主题切换 / 知识库 / 设置」；供应商与请求日志收进 `/settings`（子导航 供应商 / 日志），旧地址 `/providers`、`/logs` 保留 307 重定向；主区始终渲染当前导航项/当前会话的内容
 - [x] 侧边栏提为常驻外壳（`app/(app)/layout.tsx`）：会话树在任何页面都可见，/chat 点会话在主区就地打开（不跳路由），其它路由点会话走 `/chat/session/[id]`
 - [x] 工具调用守卫（移植 Hermes `tool_guardrails`）：识别无效重试（幂等无进展 / 同参反复失败 / 调用周期 / 批内重复），按 提示 → 拦下 → 停轮 三级处理；被拦下的调用在前端以「被守卫拦下」呈现
 - [x] 客服组件（嵌入网站）：一行 `<script src="/widget.js" data-agent data-key>` 接入任意网站 → 右下角客服按钮 + 面板（iframe 隔离样式）→ 访客无需登录即可与 agent 对话；后台可按 agent 配置标题/欢迎语/主题色/位置/来源白名单/限流，SSE 工具内部信息不外泄（详见 docs/widget-embed-design.md）

@@ -102,58 +102,13 @@ code {
   border-right: 1px solid var(--border);
 }
 
-/* 顶部：标题 Agent + 导航项 */
-.app-sidebar-top {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 14px 10px 6px;
-  flex-shrink: 0;
-}
-
-.app-sidebar-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--foreground);
-  text-decoration: none;
-  padding: 4px 8px 6px;
-  border-radius: 6px;
-}
-
-.app-sidebar-title:hover {
-  background: var(--accent);
-}
-
-.app-sidebar-nav-item {
-  display: block;
-  padding: 7px 8px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--muted-foreground);
-  text-decoration: none;
-  transition: background 0.15s, color 0.15s;
-}
-
-.app-sidebar-nav-item:hover,
-.app-sidebar-nav-item.active {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-/* 顶部与列表之间的横线（线框图中的分隔线） */
-.app-sidebar-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 8px 0 6px;
-  flex-shrink: 0;
-}
-
 /* 会话树区域：撑满中间，内部滚动 */
 .app-sidebar-tree {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-top: 4px;
 }
 
 /* 嵌入的会话树不再自带 256px 宽与右侧分隔线（外层已提供） */

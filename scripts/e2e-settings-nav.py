@@ -42,7 +42,7 @@ with sync_playwright() as p:
     rail = page.locator(".app-sidebar")
     labels = [rail.locator("a").nth(i).inner_text().strip() for i in range(rail.locator("a").count())]
     print("    侧边栏链接:", labels)
-    check("侧边栏链接为 Agent/知识库/设置", labels == ["Agent", "知识库", "设置"], str(labels))
+    check("侧边栏链接为 知识库/设置（顶部 Agent 标题已去掉）", labels == ["知识库", "设置"], str(labels))
     check("不再有「供应商」入口", "供应商" not in labels)
     check("不再有「日志」入口", "日志" not in labels)
 
@@ -55,14 +55,17 @@ with sync_playwright() as p:
       const sidebar = box(document.querySelector('.app-sidebar'));
       return { sidebarBottom: +sidebar.bottom.toFixed(1), bottomRowBottom: +bottom.bottom.toFixed(1),
                lastTop: +last.top.toFixed(1), lastLabel: items[items.length-1].innerText.trim(),
-               themeBottom: theme ? +theme.bottom.toFixed(1) : null, viewportH: innerHeight };
+               themeBottom: theme ? +theme.bottom.toFixed(1) : null, viewportH: innerHeight,
+               knowledgeBottom: +items[items.length-2].getBoundingClientRect().bottom.toFixed(1) };
     }""")
     print("    几何:", json.dumps(geo))
     check("「设置」在侧边栏最底部（底部行贴到侧边栏底）",
           abs(geo["sidebarBottom"] - geo["bottomRowBottom"]) < 2 and geo["lastLabel"] == "设置",
           f"sidebar.bottom={geo['sidebarBottom']} bottomRow.bottom={geo['bottomRowBottom']} last={geo['lastLabel']}")
-    check("主题开关在设置之上", geo["themeBottom"] is not None and geo["themeBottom"] <= geo["lastTop"] + 1,
-          f"theme.bottom={geo['themeBottom']} settings.top={geo['lastTop']}")
+    check("知识库在设置上面", geo["knowledgeBottom"] <= geo["lastTop"] + 1 and geo["lastLabel"] == "设置",
+          f"知识库.bottom={geo['knowledgeBottom']} 设置.top={geo['lastTop']}")
+    check("主题开关在知识库/设置之上", geo["themeBottom"] is not None and geo["themeBottom"] <= geo["knowledgeBottom"] + 1,
+          f"theme.bottom={geo['themeBottom']} 知识库.bottom={geo['knowledgeBottom']}")
     page.screenshot(path="/tmp/oa_nav_settings_bottom.png")
 
     print("\n【2】/settings 打开即供应商，二级导航可切换")
