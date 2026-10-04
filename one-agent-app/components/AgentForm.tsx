@@ -5,9 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AgentConfig } from "@one-agent/core";
 import type { AgentConfigWithProvider, ProviderSummary } from "@/lib/providers";
-import type { KnowledgeBase } from "@/lib/db";
 import Select from "@/components/ui/Select";
-import { Switch } from "@/components/ui/Switch";
 
 interface ToolInfo {
   name: string;
@@ -31,8 +29,6 @@ export default function AgentForm({
   initial?: AgentConfig;
 }) {
   const router = useRouter();
-  const [tools, setTools] = useState<ToolInfo[]>([]);
-  const [knowledgeBases, setKnowledgeBases] = useState<KnowledgeBase[]>([]);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -50,10 +46,10 @@ export default function AgentForm({
   );
 
   useEffect(() => {
+    // 新建时给一套默认工具（危险工具默认关）；编辑时工具在「工具」子页里改
     fetch("/api/tools")
       .then((r) => r.json())
       .then((list: ToolInfo[]) => {
-        setTools(list);
         if (!initial) {
           setForm((f) => ({
             ...f,
@@ -61,11 +57,7 @@ export default function AgentForm({
           }));
         }
       })
-      .catch(() => setTools([]));
-    fetch("/api/knowledge")
-      .then((r) => r.json())
-      .then((list: KnowledgeBase[]) => setKnowledgeBases(list))
-      .catch(() => setKnowledgeBases([]));
+      .catch(() => undefined);
     fetch("/api/providers")
       .then((r) => r.json())
       .then((list: ProviderSummary[]) => setProviders(list))
@@ -99,45 +91,6 @@ export default function AgentForm({
     setForm((f) => ({ ...f, [key]: value }));
   const setModel = <K extends keyof AgentConfig["model"]>(key: K, value: AgentConfig["model"][K]) =>
     setForm((f) => ({ ...f, model: { ...f.model, [key]: value } }));
-  /**
-   * 规划规程开关：开启时同时启用 todo 计划工件（与 kernel 的自动启用逻辑一致，否则规程会指导模型用一个用不了的工具）。
-   * 判据是「已启用」而不是「条目存在」—— 条目存在但 enabled:false 时同样要改成启用。
-   */
-  const togglePlanning = (enabled: boolean) =>
-    setForm((f) => {
-      const todoEnabled = f.tools.some((x) => x.name === "todo" && x.enabled);
-      const tools =
-        enabled && !todoEnabled
-          ? [...f.tools.filter((x) => x.name !== "todo"), { name: "todo", enabled: true }]
-          : f.tools;
-      return { ...f, planning: enabled ? { mode: "prompt" } : undefined, tools };
-    });
-
-  const toggleTool = (name: string, enabled: boolean) =>
-    setForm((f) => {
-      const exists = f.tools.some((t) => t.name === name);
-      const tools = exists
-        ? f.tools.map((t) => (t.name === name ? { ...t, enabled } : t))
-        : [...f.tools, { name, enabled }];
-      return { ...f, tools };
-    });
-
-  /** 勾选知识库：增删 knowledgeBaseIds；关联后自动启用 knowledge_search 工具，全部取消则移除 */
-  const toggleKnowledgeBase = (kbId: string) =>
-    setForm((f) => {
-      const has = (f.knowledgeBaseIds ?? []).includes(kbId);
-      const knowledgeBaseIds = has
-        ? (f.knowledgeBaseIds ?? []).filter((x) => x !== kbId)
-        : [...(f.knowledgeBaseIds ?? []), kbId];
-      let tools = f.tools;
-      if (knowledgeBaseIds.length > 0 && !tools.some((t) => t.name === "knowledge_search")) {
-        tools = [...tools, { name: "knowledge_search", enabled: true }];
-      } else if (knowledgeBaseIds.length === 0) {
-        tools = tools.filter((t) => t.name !== "knowledge_search");
-      }
-      return { ...f, knowledgeBaseIds, tools };
-    });
-
   const submit = async () => {
     setError("");
     if (!form.name.trim()) return setError("名称必填");
@@ -289,74 +242,12 @@ export default function AgentForm({
         </div>
       )}
 
-      <h3>工具（运行时动态启停）</h3>
-      {tools.length === 0 ? (
-        <p className="muted">加载工具列表…</p>
-      ) : (
-        <div className="tool-list">
-          {tools.map((t) => {
-            const enabled = form.tools.find((x) => x.name === t.name)?.enabled ?? false;
-            return (
-              <div key={t.name} className="tool-item tool-item-switch">
-                <div className="tool-item-info">
-                  <div className="tool-item-name">
-                    <code>{t.name}</code>
-                    {t.dangerous && <em className="danger-tag">危险</em>}
-                  </div>
-                  <small>{t.description}</small>
-                </div>
-                <Switch checked={enabled} onCheckedChange={(c) => toggleTool(t.name, c)} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <h3>规划（自规划规程）</h3>
-      <div className="tool-list">
-        <div className="tool-item tool-item-switch">
-          <div className="tool-item-info">
-            <div className="tool-item-name">
-              <code>planning</code>
-            </div>
-            <small>
-              开启后把「先规划后动手」的规程注入系统提示（仅会话首轮，缓存安全）：多步任务先写 todo 计划再执行、
-              复杂任务可写方案文档（plan 工具 → 工作区 .oneagent/plans/）。会自动启用 <code>todo</code>。
-            </small>
-          </div>
-          <Switch checked={form.planning?.mode === "prompt"} onCheckedChange={togglePlanning} />
-        </div>
-      </div>
-
-      <h3>知识库（关联后对话可检索）</h3>
-      {knowledgeBases.length === 0 ? (
-        <p className="muted">
-          还没有知识库。{" "}
-          <Link href="/knowledge" className="muted" style={{ textDecoration: "underline" }}>
-            去创建 →
-          </Link>
-        </p>
-      ) : (
-        <div className="tool-list">
-          {knowledgeBases.map((kb) => {
-            const enabled = (form.knowledgeBaseIds ?? []).includes(kb.id);
-            return (
-              <div key={kb.id} className="tool-item tool-item-switch">
-                <div className="tool-item-info">
-                  <div className="tool-item-name">
-                    <code>{kb.name}</code>
-                  </div>
-                  <small>{kb.description || kb.id}</small>
-                </div>
-                <Switch checked={enabled} onCheckedChange={() => toggleKnowledgeBase(kb.id)} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-      {(form.knowledgeBaseIds?.length ?? 0) > 0 && (
-        <p className="muted">已自动启用 knowledge_search 工具，对话时模型会按需检索知识库。</p>
-      )}
+      <p className="muted">
+        工具、知识库、客服组件已分到左侧的「工具 / 知识库 / 客服组件」子页，这里只管基础配置。
+        {form.tools.filter((t) => t.enabled).length > 0 && (
+          <> 当前启用 {form.tools.filter((t) => t.enabled).length} 个工具。</>
+        )}
+      </p>
 
       <h3>记忆与限制</h3>
       <div className="grid2">

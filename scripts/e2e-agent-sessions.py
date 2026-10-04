@@ -27,13 +27,16 @@ with sync_playwright() as p:
     nav = page.locator("nav.agent-subnav")
     check("左侧二级导航存在", nav.count() == 1)
     items = nav.locator(".agent-subnav-item")
-    check("导航有 2 项", items.count() == 2, items.count())
-    check("项文案为 Agent 配置 / 对话记录",
-          [items.nth(i).inner_text().strip() for i in range(2)] == ["Agent 配置", "对话记录"],
-          [items.nth(i).inner_text().strip() for i in range(2)])
+    check("导航有 5 项", items.count() == 5, items.count())
+    check("项文案为 配置/工具/知识库/客服组件/对话记录",
+          [items.nth(i).inner_text().strip() for i in range(items.count())]
+          == ["Agent 配置", "工具", "知识库", "客服组件", "对话记录"],
+          [items.nth(i).inner_text().strip() for i in range(items.count())])
     check("当前页「Agent 配置」高亮", "active" in (items.nth(0).get_attribute("class") or ""))
-    check("配置内容仍在（表单 + 客服组件卡片）",
-          "由供应商提供连接配置" in page.inner_text("body") and "客服组件（嵌入网站）" in page.inner_text("body"))
+    check("配置内容仍在（基础配置表单）", "由供应商提供连接配置" in page.inner_text("body"))
+    check("工具/知识库/客服组件已移出配置页（各在独立子页）",
+          "客服组件（嵌入网站）" not in page.inner_text("body")
+          and page.locator(".agent-split-body .tool-item-switch").count() == 0)
 
     geo = page.evaluate("""() => {
       const nav = document.querySelector('nav.agent-subnav').getBoundingClientRect();
@@ -51,7 +54,8 @@ with sync_playwright() as p:
     page.goto(f"{BASE}/agents/{AGENT}/sessions", wait_until="networkidle")
     page.wait_for_timeout(1200)
     items = page.locator("nav.agent-subnav .agent-subnav-item")
-    check("当前页「对话记录」高亮", "active" in (items.nth(1).get_attribute("class") or ""))
+    check("当前页「对话记录」高亮", "active" in (items.nth(4).get_attribute("class") or ""),
+          [items.nth(i).get_attribute("class") for i in range(items.count())])
     check("标题为「对话记录」", page.locator("h3").first.inner_text().strip() == "对话记录", page.locator("h3").first.inner_text())
     rows = page.locator(".session-row")
     count = rows.count()
