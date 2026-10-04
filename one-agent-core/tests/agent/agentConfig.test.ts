@@ -35,7 +35,7 @@ describe("AgentConfig 契约（zod）", () => {
   });
 
   it("未知字段被忽略（前向兼容），已知字段不受影响", () => {
-    const validated = validateAgentConfig(baseConfig({ 未来字段: 1 })) as Record<string, unknown>;
+    const validated = validateAgentConfig(baseConfig({ 未来字段: 1 })) as unknown as Record<string, unknown>;
     expect(validated["未来字段"]).toBeUndefined();
     expect((validated.model as { modelId: string }).modelId).toBe("mock");
   });

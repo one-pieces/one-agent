@@ -145,10 +145,13 @@ export class Agent {
             : {}),
         };
       }
+      // 本次落库整批共用：同批内内容相同的消息不会复用到同一个 id（否则前端 React key 冲突）
+      const usedIdsForThisSave = new Set<string>();
       const session: Session = {
         id: sessionId,
         agentId: agent.getConfig().id,
-        messages: messages.map((m) => toMessageWithStableId(m, history, timestamp)),
+        // 整批共用一个 usedIds：同批内内容相同的消息不会复用到同一个 id
+        messages: messages.map((m) => toMessageWithStableId(m, history, timestamp, usedIdsForThisSave)),
         createdAt: existing?.createdAt ?? timestamp,
         updatedAt: timestamp,
         meta: existingMeta,

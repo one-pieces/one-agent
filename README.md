@@ -58,7 +58,7 @@ UI 对齐 eve-agent：左侧图标导航栏 + 可折叠会话侧边栏（显示�
 - [x] M1：ToolRegistry（运行时动态增删工具）+ 内置工具（read/write/edit/bash/grep/find/ls/web_search）+ Agent 动态配置 + AgentLoop 多轮工具调用 + CLI 对话
 - [x] M2：会话与记忆（Session/SessionStore 内存 + SQLite 持久化、消息 id 稳定、窗口裁剪 + compaction 摘要、重启恢复）
 - [x] M3：应用层 v1（Next.js 对话页 + SSE 桥 + Agent 管理 UI 动态配置 + SQLite 存储，浏览器全流程验证）
-- [x] M4：动态配置强化（会话级 model/tool 覆盖存 session.meta 每轮自动生效、请求级 override 优先、多会话隔离）
+- [x] M4：动态配置（Agent 配置改动即时生效：按 config 缓存 Agent 实例并自动重建；模型与工具一律以 Agent 配置为准）
 - [x] M5：增强（MCP 桥接动态接入外部工具、工具沙箱 worker_threads、危险工具审批默认拒绝、请求日志 /api/logs、API key AES-256-GCM 加密存储）
 - [x] P1：自规划能力（AgentConfig.planning 规划规程 + todo 计划工件（压缩后自动重注入未完成项）+ plan 方案文档/面板）与工具批调度器（路径重叠感知的并行/串行分段）
 - [ ] 文件系统沙盒：当前工具沙箱仅 worker_threads 线程级隔离（崩溃/超时），bash 等命令仍可访问全盘；需 OS 级限制只读写会话工作区（macOS sandbox-exec / Linux 容器 / 权限降级）

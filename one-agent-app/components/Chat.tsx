@@ -25,7 +25,6 @@ import {
 import { Streamdown } from "streamdown";
 import { cjk } from "@streamdown/cjk";
 import { consumeSSE } from "@/lib/sse-client";
-import SessionSettings from "@/components/SessionSettings";
 import { codePlugin } from "@/lib/code-theme";
 import {
   applyChunk,
@@ -428,9 +427,6 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
             {streaming && <span className="status-dot" title="生成中" />}
           </span>
         </div>
-        <div className="chat-header-right">
-          <SessionSettings sessionId={sessionId} agent={agent} />
-        </div>
       </header>
 
       {errorBanner && (
@@ -515,7 +511,7 @@ export default function Chat({ sessionId, agent }: { sessionId: string; agent: A
                               <div className="tool-label">OUTPUT</div>
                               {tc.status === "denied" ? (
                                 <p className="tool-denied-note">
-                                  危险操作未获批准（可在右上角会话覆盖中开启「允许危险工具」后重试）
+                                  危险操作未获批准（网页对话默认不执行危险操作）
                                 </p>
                               ) : tc.status === "blocked" ? (
                                 /* 被工具调用守卫拦下：工具没有执行，显示原因而不是一坨 JSON */

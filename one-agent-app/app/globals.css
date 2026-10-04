@@ -396,12 +396,6 @@ code {
   min-width: 0;
 }
 
-.chat-header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .status-dot {
   display: inline-block;
   width: 8px;

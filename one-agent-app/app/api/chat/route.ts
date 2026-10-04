@@ -6,8 +6,8 @@ export const runtime = "nodejs";
 
 /**
  * POST /api/chat — SSE 流式对话
- * body: { agentId, sessionId, message, modelOverride?, toolOverrides?, allowDangerous? }
- * modelOverride/toolOverrides：请求级覆盖（未提供则用会话 meta 中的覆盖）
+ * body: { agentId, sessionId, message, allowDangerous? }
+ * 模型与工具一律取自 Agent 配置（会话级/请求级覆盖已移除，避免同一会话出现"看着是 A 实际跑 B"）
  * allowDangerous：默认 false —— 危险工具（bash 等）默认拒绝，需显式开启
  * 响应：text/event-stream，每行 `data: <StreamChunk JSON>`（契约见 contracts/stream-protocol.md）
  */
@@ -16,8 +16,6 @@ export async function POST(request: Request) {
     agentId?: string;
     sessionId?: string;
     message?: string;
-    modelOverride?: unknown;
-    toolOverrides?: unknown;
     allowDangerous?: boolean;
   };
   try {
@@ -25,7 +23,7 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
-  const { agentId, sessionId, message, modelOverride, toolOverrides, allowDangerous } = body;
+  const { agentId, sessionId, message, allowDangerous } = body;
   if (!agentId || !sessionId || typeof message !== "string" || !message.trim()) {
     return Response.json({ error: "agentId, sessionId, message 必填" }, { status: 400 });
   }
@@ -36,10 +34,8 @@ export async function POST(request: Request) {
   // 运行时解析模型供应商：改了 provider 的密钥/地址，所有引用它的 agent 立即生效
   const config = resolveAgentModel(stored);
 
-  // 危险工具放行：请求级 allowDangerous 或会话 meta.allowDangerous
-  const session = await kernel.getSession(sessionId);
-  const metaAllow = (session?.meta as { allowDangerous?: boolean } | undefined)?.allowDangerous ?? false;
-  const allowDangerousEffective = allowDangerous === true || metaAllow === true;
+  // 危险工具放行：仅请求级 allowDangerous（会话级开关已随会话覆盖一并移除）
+  const allowDangerousEffective = allowDangerous === true;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
@@ -50,8 +46,6 @@ export async function POST(request: Request) {
           sessionId,
           message,
           signal: request.signal,
-          modelOverride: modelOverride as never,
-          toolOverrides: toolOverrides as never,
           // 危险工具默认拒绝（Web 安全默认）；请求级或会话级开启后才放行
           onApproval: () => allowDangerousEffective,
         })) {

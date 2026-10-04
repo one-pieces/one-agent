@@ -56,7 +56,7 @@ SDK 里不需要带任何对话 UI 代码，也避免了 Shadow DOM 在流式渲
 |---|---|
 | 被盗用 | 公开接口必须带**该 agent 的 embedKey**；重置即失效；组件关闭后一律 403 |
 | 被别的网站白嫖 | `origins` 白名单：支持完整 origin（含端口）与通配子域 `*.example.com`；**写了协议就精确匹配**（只允许 https 的站点不会被 http 放行）；配了白名单后**没有 Origin 的请求也拒绝** |
-| 访客越权触发危险工具 | 访客请求**不接受** `modelOverride`/`toolOverrides`/`allowDangerous`；`onApproval` 恒 `false` → 需要审批的工具（bash 等）一律拒绝 |
+| 访客越权触发危险工具 | 访客请求**不接受** `allowDangerous` 等任何越权参数；`onApproval` 恒 `false` → 需要审批的工具（bash 等）一律拒绝 |
 | 内部信息外泄 | 公开配置不含 provider/apiKey/instructions/工具/知识库；SSE 流里 `tool_result` **整条丢弃**，`tool_call` 只转成「正在查资料…」这类文案（工具名与参数不进访客视野）；历史接口过滤合成消息与工具消息 |
 | 被刷 | 按会话滑动窗口限流（每分钟条数，后台可配）+ 单条消息长度上限 2000 字 |
 | 跨访客串号 | 会话用随机 `visitorToken` 绑定；token 不匹配 → 403（拿别人的 sessionId 也读不到记录） |

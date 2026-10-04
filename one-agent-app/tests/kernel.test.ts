@@ -64,73 +64,35 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("InProcessKernel 会话覆盖（M4）", () => {
-  it("会话 meta 的 modelOverride 每轮自动生效", async () => {
+describe("InProcessKernel 模型/工具来源（会话覆盖已移除）", () => {
+  it("模型与工具一律取自 Agent 配置（会话 meta 里的旧覆盖不再生效）", async () => {
     const { kernel, provider } = makeKernel();
     const session = kernel.createSession("test-agent");
-    await kernel.updateSessionOverrides(session.id, {
-      modelOverride: { modelId: "session-model", temperature: 0.9 },
-    });
+    // 用真实存在的内置工具（ls）作为"Agent 配置启用的工具"
+    const config: AgentConfig = { ...agentConfig, tools: [{ name: "ls", enabled: true }] };
+    // 模拟历史会话里残留的旧覆盖字段：不再影响运行
+    session.meta = {
+      modelOverride: { modelId: "stale-model", temperature: 0.9 },
+      toolOverrides: [{ name: "ls", enabled: false }],
+    };
+    await kernel.store.saveSession(session);
 
-    await drain(kernel.runChat({ agentConfig, sessionId: session.id, message: "hi" }));
+    await drain(kernel.runChat({ agentConfig: config, sessionId: session.id, message: "hi" }));
 
     const call = provider.calls[0]!;
-    expect(call.config.modelId).toBe("session-model");
-    expect(call.config.temperature).toBe(0.9);
+    expect(call.config.modelId).toBe("default-model"); // 不是 stale-model
+    expect(call.config.temperature).toBe(0.5); // 不是 0.9
+    expect((call.tools ?? []).map((t) => t.name)).toContain("ls"); // 旧覆盖没禁掉它
   });
 
-  it("请求级 override 优先于会话 meta", async () => {
-    const { kernel, provider } = makeKernel();
-    const session = kernel.createSession("test-agent");
-    await kernel.updateSessionOverrides(session.id, { modelOverride: { modelId: "meta-model" } });
-
-    await drain(
-      kernel.runChat({
-        agentConfig,
-        sessionId: session.id,
-        message: "hi",
-        modelOverride: { modelId: "request-model" },
-      }),
-    );
-
-    expect(provider.calls[0]!.config.modelId).toBe("request-model");
-  });
-
-  it("会话 meta 的 toolOverrides 生效（禁用 calculator）", async () => {
-    const { kernel, provider } = makeKernel();
-    const session = kernel.createSession("test-agent");
-    await kernel.updateSessionOverrides(session.id, {
-      toolOverrides: [{ name: "calculator", enabled: false }],
-    });
-
-    await drain(kernel.runChat({ agentConfig, sessionId: session.id, message: "hi" }));
-
-    // Agent 配置里 calculator 是启用的，但会话覆盖禁用了它
-    expect(provider.calls[0]!.tools).toEqual([]);
-  });
-
-  it("两个会话互不干扰（模型隔离）", async () => {
-    const { kernel, provider } = makeKernel();
-    const sA = kernel.createSession("test-agent");
-    const sB = kernel.createSession("test-agent");
-    await kernel.updateSessionOverrides(sA.id, { modelOverride: { modelId: "model-A" } });
-    await kernel.updateSessionOverrides(sB.id, { modelOverride: { modelId: "model-B" } });
-
-    await drain(kernel.runChat({ agentConfig, sessionId: sA.id, message: "a" }));
-    await drain(kernel.runChat({ agentConfig, sessionId: sB.id, message: "b" }));
-
-    expect(provider.calls[0]!.config.modelId).toBe("model-A");
-    expect(provider.calls[1]!.config.modelId).toBe("model-B");
-  });
-
-  it("updateSessionOverrides 传 null 清除覆盖，回落 Agent 默认", async () => {
-    const { kernel, provider } = makeKernel();
-    const session = kernel.createSession("test-agent");
-    await kernel.updateSessionOverrides(session.id, { modelOverride: { modelId: "override" } });
-    await kernel.updateSessionOverrides(session.id, { modelOverride: null });
-
-    await drain(kernel.runChat({ agentConfig, sessionId: session.id, message: "hi" }));
-    expect(provider.calls[0]!.config.modelId).toBe("default-model");
+  it("runChat 不再接受 modelOverride / toolOverrides（类型层面已移除）", () => {
+    const { kernel } = makeKernel();
+    // 生成器在被迭代前不会执行，这里只做类型层面的断言
+    // @ts-expect-error modelOverride 已从 runChat 签名移除
+    void kernel.runChat({ agentConfig, sessionId: "s-1", message: "hi", modelOverride: { modelId: "x" } });
+    // @ts-expect-error toolOverrides 已从 runChat 签名移除
+    void kernel.runChat({ agentConfig, sessionId: "s-1", message: "hi", toolOverrides: [] });
+    expect(typeof kernel.runChat).toBe("function");
   });
 
   it("onApproval 拒绝 → 危险工具不执行", async () => {

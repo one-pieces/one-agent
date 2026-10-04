@@ -371,7 +371,7 @@ export function classifyProviderError(err: unknown, status?: number, bodyText?: 
 - 每条快照：`git --git-dir=<repo.git> --work-tree=<sessionWorkspace> add -A && commit -m "turn <n> <iso>"`，`GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE` 显式传入（不依赖 cwd）；环境隔离 `GIT_AUTHOR_NAME=one-agent` 等，避免读用户全局 git 配置。
 - 触发点：`AgentLoop` 每轮**首个** `isWriter` 工具调用前（planner 已能判定 writer，直接复用）触发一次；同轮只快照一次。
 - 保留策略：`maxSnapshots = 20`、`retentionDays = 7`、`autoPrune`（`git gc` + 删旧 ref）。全部可通过 `AgentConfig.checkpoints` 关闭（默认开）。
-- 回退 API：`kernel.rollback(sessionId, n)`（内部 `git checkout <sha> -- .` + 删除多余文件用 `git clean -fd`，**限工作区内**）；暴露为 app 端 `POST /api/sessions/[id]/rollback`；UI 在会话设置里加一项（复用现有 `SessionSettings` 组件，符合"优先复用现有组件"的偏好）。
+- 回退 API：`kernel.rollback(sessionId, n)`（内部 `git checkout <sha> -- .` + 删除多余文件用 `git clean -fd`，**限工作区内**）；暴露为 app 端 `POST /api/sessions/[id]/rollback`；UI 入口待定（原先设想的会话设置组件已随「会话覆盖」一并移除）。
 - 依赖探测：`git` 不存在 → 功能静默禁用并在日志记一条（不要硬失败）。
 
 ### 测试

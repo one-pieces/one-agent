@@ -22,21 +22,11 @@ import {
 import { createLoggingFetch } from "./observability.ts";
 import { createKnowledgeSearchTool } from "./knowledge-tool.ts";
 
-/** 会话级配置覆盖（存在 Session.meta，每轮自动生效）—— 多会话模型/工具隔离的核心 */
-export interface SessionOverrides {
-  modelOverride?: Partial<ProviderConfig>;
-  toolOverrides?: Array<{ name: string; enabled: boolean }>;
-  /** 会话级：是否允许执行危险工具（Web 默认拒绝） */
-  allowDangerous?: boolean;
-}
-
-type ToolOverride = SessionOverrides["toolOverrides"];
-
 /**
  * InProcessKernel：应用层唯一依赖的内核面（§6.8 KernelClient）。
  * 进程内直调 @one-agent/core；未来可换成 HttpKernel 指向 Python 内核实现，接口不变。
  * - Agent 实例按 config 缓存，配置变更后自动失效重建 → 动态配置即时生效
- * - 会话覆盖（modelOverride/toolOverrides）存在 session.meta，每轮自动合并
+ * - 模型与工具**以 Agent 配置为准**（此前的会话级覆盖已移除）
  */
 export class InProcessKernel {
   private cache = new Map<string, { config: AgentConfig; agent: Agent }>();
@@ -107,25 +97,16 @@ export class InProcessKernel {
   }
 
   /**
-   * 流式对话。优先用请求级 override；未提供则回落到会话 meta 中的覆盖。
-   * 会话覆盖 → 同一 Agent、不同会话可用不同模型/工具，互不干扰（多用户模型隔离）。
+   * 流式对话。模型与工具都取自 `agentConfig`（会话级覆盖已移除）。
    */
   async *runChat(req: {
     agentConfig: AgentConfig;
     sessionId: string;
     message: string;
     signal?: AbortSignal;
-    modelOverride?: Partial<ProviderConfig>;
-    toolOverrides?: ToolOverride;
     /** 危险工具审批：返回 false 拒绝（未提供则危险工具默认放行） */
     onApproval?: (call: ToolCall, tool: ToolSpec) => boolean | Promise<boolean>;
   }): AsyncIterable<StreamChunk> {
-    const session = await this.store.getSession(req.sessionId);
-    const meta = (session?.meta ?? {}) as SessionOverrides;
-
-    const modelOverride = req.modelOverride ?? meta.modelOverride;
-    const toolOverrides = req.toolOverrides ?? meta.toolOverrides;
-
     const agent = this.getOrCreate(req.agentConfig);
     // 确保会话工作区已存在（bash 等以它为 cwd 的工具需要目录就绪）
     mkdirSync(this.sessionWorkspacePath(req.sessionId), { recursive: true });
@@ -134,36 +115,8 @@ export class InProcessKernel {
       signal: req.signal,
       // 工具相对路径基准：会话级工作区（data/workspace/{sessionId}），避免 agent 文件写入服务进程目录
       cwd: this.sessionWorkspacePath(req.sessionId),
-      ...(modelOverride ? { modelOverride } : {}),
-      ...(toolOverrides ? { toolOverrides } : {}),
       ...(req.onApproval ? { onApproval: req.onApproval } : {}),
     });
-  }
-
-  /** 更新会话覆盖（modelOverride/toolOverrides；传 null 清除对应项；allowDangerous 单独处理） */
-  async updateSessionOverrides(
-    sessionId: string,
-    patch: {
-      modelOverride?: Partial<ProviderConfig> | null;
-      toolOverrides?: ToolOverride | null;
-      allowDangerous?: boolean;
-    },
-  ): Promise<Session | null> {
-    const session = await this.store.getSession(sessionId);
-    if (!session) return null;
-    const meta: SessionOverrides = { ...(session.meta as SessionOverrides | undefined) };
-    if (patch.modelOverride === null) delete meta.modelOverride;
-    else if (patch.modelOverride !== undefined) meta.modelOverride = patch.modelOverride;
-    if (patch.toolOverrides === null) delete meta.toolOverrides;
-    else if (patch.toolOverrides !== undefined) meta.toolOverrides = patch.toolOverrides;
-    if (patch.allowDangerous !== undefined) {
-      if (patch.allowDangerous) meta.allowDangerous = true;
-      else delete meta.allowDangerous;
-    }
-    session.meta = meta as Record<string, unknown>;
-    session.updatedAt = new Date().toISOString();
-    await this.store.saveSession(session);
-    return session;
   }
 
   /** 删除会话中的一条消息（用于前端消息删除） */
