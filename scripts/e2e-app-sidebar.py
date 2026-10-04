@@ -115,23 +115,33 @@ with sync_playwright() as p:
     check("高亮的就是点的那条", title in (page.locator(".sidebar-subitem.active").inner_text() or ""), title)
     page.screenshot(path="/tmp/oa_new_sidebar_session.png")
 
-    print("\n【5】树里 ＋ 新建 → 主区就地打开新对话")
-    before = page.locator(".sidebar-subitem").count()
-    page.locator(".sidebar-group-head").nth(1).hover()
-    page.locator(".sidebar-group-head").nth(1).locator(".sidebar-item-delete").click()
-    page.wait_for_timeout(2500)
-    check("新会话出现在树里", page.locator(".sidebar-subitem").count() == before + 1,
-          f"{page.locator('.sidebar-subitem').count()} / {before + 1}")
+    print("\n【5】树里 ＋ 新建 → 主区就地打开新对话（按 session id 判定，可并行跑）")
+    before_ids = {s["id"] for s in api("/api/sessions?summary=1")[1]}
+    head = page.locator(".sidebar-group-head").nth(1)
+    target_agent = head.get_attribute("data-agent-id")
+    head.hover()
+    head.locator(".sidebar-item-delete").click()
+    # 新建后主区就地打开它 → 树里「当前高亮的那条」就是我自己建的（不看全局计数，避免并行互相干扰）
+    page.wait_for_selector(".sidebar-subitem.active", timeout=10000)
+    page.wait_for_timeout(1200)
+    active_row = page.locator(".sidebar-subitem.active").first
+    new_id = active_row.get_attribute("data-session-id") or ""
+    _, rows = api("/api/sessions?summary=1")
+    row_data = next((s for s in rows if s["id"] == new_id), None)
+    check("＋ 新建出的就是当前高亮那条（属于我刚点的那个 Agent，且不在点击前的集合里）",
+          bool(new_id) and new_id not in before_ids and row_data is not None and row_data["agentId"] == target_agent,
+          f"new_id={new_id} agent={row_data['agentId'] if row_data else None} 期望 agent={target_agent}")
+    check("新会话行在树里（按 data-session-id 精确定位）",
+          bool(new_id) and page.locator(f'.sidebar-subitem[data-session-id="{new_id}"]').count() == 1, new_id)
     check("主区切到新对话（仍有输入框）", page.locator(".app-main textarea").count() >= 1)
-    # 清理：删掉刚建的临时会话
-    new_row = page.locator(".sidebar-subitem.active").first
-    if new_row.count():
-        page.once("dialog", lambda d: d.accept())
-        new_row.hover()
-        new_row.locator(".sidebar-item-delete").click()
-        page.wait_for_timeout(1500)
-    check("临时会话已清理", page.locator(".sidebar-subitem").count() == before,
-          f"{page.locator('.sidebar-subitem').count()} / {before}")
+    # 清理：只删自己刚建的那条（不碰其它脚本/别人的会话）
+    if new_id:
+        api(f"/api/sessions/{new_id}", "DELETE")
+    page.reload(wait_until="networkidle")
+    page.wait_for_timeout(1500)
+    check("自己建的临时会话已清理（其它会话不受影响）",
+          page.locator(f'.sidebar-subitem[data-session-id="{new_id}"]').count() == 0,
+          f"{new_id}")
 
     print("\n【6】其它路由仍可用")
     for path, expect in [("/agents", "Agents"), ("/settings/logs", "设置")]:

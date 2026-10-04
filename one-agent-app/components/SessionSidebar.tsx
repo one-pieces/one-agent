@@ -183,6 +183,7 @@ export default function SessionSidebar({ activeSessionId, onOpenSession, onSessi
                     role="button"
                     tabIndex={0}
                     aria-expanded={!isCollapsed}
+                    data-agent-id={agent.id}
                     onClick={() => toggleAgent(agent.id)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -223,6 +224,7 @@ export default function SessionSidebar({ activeSessionId, onOpenSession, onSessi
                             <div
                               role="button"
                               tabIndex={0}
+                              data-session-id={s.id}
                               onClick={() => openSession(s.id)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") openSession(s.id);
