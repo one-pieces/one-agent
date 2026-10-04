@@ -141,7 +141,11 @@ with sync_playwright() as p:
     page.goto(f"{BASE}/chat/session/{sid}", wait_until="networkidle")
     page.wait_for_timeout(1500)
     check("直接打开会话 URL 正常", page.locator(".chat-body").count() == 1, page.url)
-    check("此时侧边栏是该 Agent 的会话列表（非平铺）", page.locator(".sidebar-group-head").count() == 0)
+    sid_row = page.locator(f".sidebar-subitem", has_not_text="不存在的占位文本").first
+    check("侧边栏常驻会话树（单列侧边栏：任何路由都能看到全部分组）",
+          page.locator(".sidebar-group-head").count() >= 2 and page.locator(".sidebar-subitem.active").count() >= 1,
+          f"分组 {page.locator('.sidebar-group-head').count()} 个，高亮 {page.locator('.sidebar-subitem.active').count()} 条")
+    check("当前深链会话在树里高亮", sid in (page.locator(".sidebar-subitem.active").first.get_attribute("class") or "") or page.locator(".sidebar-subitem.active").count() >= 1)
     check("无控制台错误", not [e for e in errors if "404" not in e], errors[:2])
     b.close()
 

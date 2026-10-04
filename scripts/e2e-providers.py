@@ -95,10 +95,10 @@ with sync_playwright() as p:
           page.locator("h1").first.inner_text())
     cards = page.locator(".card")
     check("列表渲染出供应商卡片", cards.count() == base_count, f"cards={cards.count()} expected={base_count}")
-    nav_labels = [page.locator("nav.app-nav a.app-nav-item").nth(i).inner_text().strip()
-                  for i in range(page.locator("nav.app-nav a.app-nav-item").count())]
-    check("供应商已从主导航移入「设置」（导航底部是设置）",
-          "供应商" not in nav_labels and nav_labels[-1] == "设置", str(nav_labels))
+    nav_labels = [page.locator(".app-sidebar a").nth(i).inner_text().strip()
+                  for i in range(page.locator(".app-sidebar a").count())]
+    check("供应商已从导航移入「设置」（导航里没有供应商，底部是设置）",
+          not any("供应商" == t for t in nav_labels) and nav_labels[-1] == "设置", str(nav_labels))
     check("设置页二级导航出现「供应商」", page.locator("nav.agent-subnav a", has_text="供应商").count() == 1)
 
     page.screenshot(path="/tmp/oa_providers_list.png", full_page=True)

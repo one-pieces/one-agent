@@ -31,7 +31,7 @@ export default function ThemeToggle() {
 
   return (
     <button
-      className="app-nav-item app-nav-theme"
+      className="app-sidebar-bottom-item"
       onClick={toggle}
       title={theme === "dark" ? "切换到亮色主题" : "切换到暗色主题"}
       aria-label="切换主题"

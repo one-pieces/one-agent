@@ -50,8 +50,7 @@ with sync_playwright() as p:
     check("分组头显示对话段数", all("段对话" in heads.nth(i).inner_text() or "暂无对话" in heads.nth(i).inner_text() for i in range(heads.count())))
     subs = page.locator(".sidebar-subitem")
     check("展开后平铺出所有对话", subs.count() == len(summaries), f"页面 {subs.count()} / 后端 {len(summaries)}")
-    check("页脚统计正确", f"{len(agents)} 个 Agent" in page.locator(".sidebar-count").inner_text() and f"{len(summaries)} 段对话" in page.locator(".sidebar-count").inner_text(),
-          page.locator(".sidebar-count").inner_text())
+    check("全局页脚统计已去掉（改为每行显示条数）", page.locator(".sidebar-count").count() == 0)
     check("客服访客会话有标记", page.locator(".sidebar-subitem", has_text="客服访客").count() >= 1)
     page.screenshot(path="/tmp/oa_chat_sidebar_expanded.png")
 
@@ -126,13 +125,16 @@ with sync_playwright() as p:
     page.wait_for_timeout(800)
     errors.clear()
 
-    print("\n【6】agent 上下文页行为未变")
+    print("\n【6】单列侧边栏：agent 上下文页也常驻同一棵会话树")
     page.goto(f"{BASE}/chat/agent/agent-shop-cs", wait_until="networkidle")
     page.wait_for_timeout(1500)
-    check("侧边栏标题是该 agent 名", page.locator(".sidebar-title").inner_text().strip() == "电商平台客服", page.locator(".sidebar-title").inner_text())
-    check("无分组头（不是平铺模式）", page.locator(".sidebar-group-head").count() == 0)
-    check("显示该 agent 的会话列表", page.locator(".sidebar-item").count() >= 1)
-    check("计数为「N 个会话」", "个会话" in page.locator(".sidebar-count").inner_text(), page.locator(".sidebar-count").inner_text())
+    check("侧边栏标题固定为「对话」（不再随 agent 变）", page.locator(".sidebar-title").inner_text().strip() == "对话", page.locator(".sidebar-title").inner_text())
+    check("仍是平铺分组（单列侧边栏统一模式）", page.locator(".sidebar-group-head").count() >= 2,
+          f"{page.locator('.sidebar-group-head').count()} 组")
+    check("该 agent 的分组在树里", page.locator(".sidebar-group-head", has_text="电商平台客服").count() == 1)
+    check("该 Agent 的会话都在树里（按条数核对，不再有全局计数行）",
+          page.locator(".sidebar-subitem").count() >= 1 and page.locator(".sidebar-count").count() == 0,
+          f"{page.locator('.sidebar-subitem').count()} 条")
     check("无控制台错误", not errors, errors[:2])
     b.close()
 

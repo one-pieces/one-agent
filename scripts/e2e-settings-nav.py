@@ -39,25 +39,28 @@ with sync_playwright() as p:
     print("【1】左侧导航：只剩 Agent / 知识库，底部是设置")
     page.goto(f"{BASE}/chat", wait_until="networkidle")
     page.wait_for_timeout(1500)
-    rail = page.locator("nav.app-nav")
-    items = rail.locator("a.app-nav-item")
-    labels = [items.nth(i).inner_text().strip() for i in range(items.count())]
-    print("    导航项:", labels)
-    check("导航项为 对话/Agents/知识库/设置", labels == ["对话", "Agents", "知识库", "设置"], str(labels))
+    rail = page.locator(".app-sidebar")
+    labels = [rail.locator("a").nth(i).inner_text().strip() for i in range(rail.locator("a").count())]
+    print("    侧边栏链接:", labels)
+    check("侧边栏链接为 Agent/知识库/设置", labels == ["Agent", "知识库", "设置"], str(labels))
     check("不再有「供应商」入口", "供应商" not in labels)
     check("不再有「日志」入口", "日志" not in labels)
 
     geo = page.evaluate("""() => {
-      const rail = document.querySelector('nav.app-nav').getBoundingClientRect();
-      const items = [...document.querySelectorAll('nav.app-nav a.app-nav-item')];
-      const last = items[items.length - 1].getBoundingClientRect();
-      const theme = document.querySelector('nav.app-nav button');
-      return { railBottom: +rail.bottom.toFixed(1), lastTop: +last.top.toFixed(1), lastLabel: items[items.length-1].innerText.trim(),
-               themeBottom: theme ? +theme.getBoundingClientRect().bottom.toFixed(1) : null, viewportH: innerHeight };
+      const box = (el) => el ? el.getBoundingClientRect() : null;
+      const bottom = box(document.querySelector('.app-sidebar-bottom'));
+      const items = [...document.querySelectorAll('.app-sidebar-bottom-item')];
+      const last = box(items[items.length - 1]);
+      const theme = box(items[0]);
+      const sidebar = box(document.querySelector('.app-sidebar'));
+      return { sidebarBottom: +sidebar.bottom.toFixed(1), bottomRowBottom: +bottom.bottom.toFixed(1),
+               lastTop: +last.top.toFixed(1), lastLabel: items[items.length-1].innerText.trim(),
+               themeBottom: theme ? +theme.bottom.toFixed(1) : null, viewportH: innerHeight };
     }""")
     print("    几何:", json.dumps(geo))
-    check("「设置」在导航最底部（接近视口底）", geo["viewportH"] - geo["railBottom"] < 40 and geo["lastLabel"] == "设置",
-          f"rail 底部距视口 {round(geo['viewportH'] - geo['railBottom'])}px")
+    check("「设置」在侧边栏最底部（底部行贴到侧边栏底）",
+          abs(geo["sidebarBottom"] - geo["bottomRowBottom"]) < 2 and geo["lastLabel"] == "设置",
+          f"sidebar.bottom={geo['sidebarBottom']} bottomRow.bottom={geo['bottomRowBottom']} last={geo['lastLabel']}")
     check("主题开关在设置之上", geo["themeBottom"] is not None and geo["themeBottom"] <= geo["lastTop"] + 1,
           f"theme.bottom={geo['themeBottom']} settings.top={geo['lastTop']}")
     page.screenshot(path="/tmp/oa_nav_settings_bottom.png")
@@ -73,7 +76,7 @@ with sync_playwright() as p:
           [subs.nth(i).inner_text().strip() for i in range(subs.count())])
     check("当前高亮「供应商」", "active" in (subs.nth(0).get_attribute("class") or ""))
     check("供应商列表渲染出来", page.locator(".card").count() == len(provs), f"{page.locator('.card').count()} / {len(provs)}")
-    check("左侧导航「设置」高亮", "active" in (rail.locator("a.app-nav-item").last.get_attribute("class") or ""))
+    check("侧边栏底部「设置」高亮", "active" in (rail.locator(".app-sidebar-bottom-item", has_text="设置").get_attribute("class") or ""))
     page.screenshot(path="/tmp/oa_settings_providers.png")
 
     print("\n【3】切到日志")

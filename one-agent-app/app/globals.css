@@ -85,64 +85,116 @@ code {
   color: var(--muted-foreground);
 }
 
-/* ═══ 应用外壳：左导航 + 内容 ═══ */
+/* ═══ 应用外壳：左侧单列侧边栏 + 内容 ═══ */
 .app-shell {
   display: flex;
   height: 100vh;
   overflow: hidden;
 }
 
-.app-nav {
-  width: 56px;
+/* ═══ 左侧单列侧边栏（导航 + 会话树 + 设置，对齐线框图）═══ */
+.app-sidebar {
+  width: 300px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 0;
-  background: var(--card);
+  min-height: 0;
   border-right: 1px solid var(--border);
 }
 
-.app-nav-brand {
-  font-size: 20px;
-  margin-bottom: 8px;
-  text-decoration: none;
-}
-
-.app-nav-item {
+/* 顶部：标题 Agent + 导航项 */
+.app-sidebar-top {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 48px;
-  padding: 7px 0;
-  border-radius: 8px;
+  gap: 1px;
+  padding: 14px 10px 6px;
+  flex-shrink: 0;
+}
+
+.app-sidebar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--foreground);
+  text-decoration: none;
+  padding: 4px 8px 6px;
+  border-radius: 6px;
+}
+
+.app-sidebar-title:hover {
+  background: var(--accent);
+}
+
+.app-sidebar-nav-item {
+  display: block;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 13px;
   color: var(--muted-foreground);
   text-decoration: none;
-  font-size: 10px;
   transition: background 0.15s, color 0.15s;
 }
 
-.app-nav-item:hover {
+.app-sidebar-nav-item:hover,
+.app-sidebar-nav-item.active {
   background: var(--accent);
   color: var(--foreground);
 }
 
-.app-nav-item.active {
-  background: var(--accent);
-  color: var(--foreground);
+/* 顶部与列表之间的横线（线框图中的分隔线） */
+.app-sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0 6px;
+  flex-shrink: 0;
 }
 
-.app-nav-spacer {
+/* 会话树区域：撑满中间，内部滚动 */
+.app-sidebar-tree {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.app-nav-theme {
-  background: transparent;
+/* 嵌入的会话树不再自带 256px 宽与右侧分隔线（外层已提供） */
+.app-sidebar .sidebar {
+  width: auto;
+  flex: 1;
+  min-height: 0;
+  border-right: none;
+}
+
+/* 底部：主题切换 + 设置 */
+.app-sidebar-bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.app-sidebar-bottom-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
   border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--muted-foreground);
+  text-decoration: none;
   cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.app-sidebar-bottom-item:hover,
+.app-sidebar-bottom-item.active {
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 .app-main {
@@ -152,13 +204,7 @@ code {
   flex-direction: column;
 }
 
-/* ═══ 聊天双栏布局 ═══ */
-.chat-layout {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
+/* ═══ 聊天区（主区内的对话）═══ */
 .sidebar {
   width: 256px;
   flex-shrink: 0;
@@ -166,13 +212,6 @@ code {
   flex-direction: column;
   /* 不铺底色：与消息区同用页面底，只靠右侧分隔线划分区域 */
   border-right: 1px solid var(--border);
-}
-
-.sidebar-collapsed {
-  width: 44px;
-  align-items: center;
-  padding-top: 12px;
-  gap: 6px;
 }
 
 .sidebar-header {
