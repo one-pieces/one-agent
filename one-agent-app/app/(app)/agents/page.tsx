@@ -29,7 +29,7 @@ export default function AgentsPage() {
                 <code>{a.id}</code> ·{" "}
                 {a.providerId ? (
                   <>
-                    <Link href="/providers">{providerName.get(a.providerId) ?? a.providerId}</Link> /{" "}
+                    <Link href="/settings/providers">{providerName.get(a.providerId) ?? a.providerId}</Link> /{" "}
                   </>
                 ) : (
                   <>{a.model.provider} / </>

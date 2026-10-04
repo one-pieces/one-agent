@@ -64,7 +64,8 @@ UI 对齐 eve-agent：左侧图标导航栏 + 可折叠会话侧边栏（显示�
 - [ ] 文件系统沙盒：当前工具沙箱仅 worker_threads 线程级隔离（崩溃/超时），bash 等命令仍可访问全盘；需 OS 级限制只读写会话工作区（macOS sandbox-exec / Linux 容器 / 权限降级）
 - [x] UI 改造（对齐 eve-agent）：左侧图标导航 + 可折叠会话侧边栏（方案 A：当前 Agent 会话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 危险工具会话开关 + 消息删除 + 会话自动标题
 - [x] 知识库完整 RAG（对齐 eve-agent）：多文件上传（.txt/.md/.mdx）→ 每文件独立向量索引（none→building→done/error，SSE 进度）+ Transformers.js 本地向量化（BAAI/bge-m3，1024 维，hf-mirror 兜底）+ 混合检索（BM25+向量+RRF）+ 可选 cross-encoder 重排 + 向量索引/分块查看器 + `knowledge_search` 工具（Agent 按需调用）
-- [x] 模型供应商独立模块：`providers` 表 + `/providers` 管理页（kind/Base URL/API Key/模型清单，密钥 AES-256-GCM 加密）；Agent 只填 `providerId` 下拉选择，运行时解析 → 换密钥/换地址一次生效；老配置自动迁移
+- [x] 模型供应商独立模块：`providers` 表 + `/settings/providers` 管理页（**入口在左侧导航底部的「设置」里**；kind/Base URL/API Key/模型清单，密钥 AES-256-GCM 加密）；Agent 只填 `providerId` 下拉选择，运行时解析 → 换密钥/换地址一次生效；老配置自动迁移
+- [x] 导航收敛：「对话 / Agents / 知识库」+ 底部「设置」；供应商与请求日志收进 `/settings`（子导航 供应商 / 日志），旧地址 `/providers`、`/logs` 保留 307 重定向
 - [x] 工具调用守卫（移植 Hermes `tool_guardrails`）：识别无效重试（幂等无进展 / 同参反复失败 / 调用周期 / 批内重复），按 提示 → 拦下 → 停轮 三级处理；被拦下的调用在前端以「被守卫拦下」呈现
 - [x] 客服组件（嵌入网站）：一行 `<script src="/widget.js" data-agent data-key>` 接入任意网站 → 右下角客服按钮 + 面板（iframe 隔离样式）→ 访客无需登录即可与 agent 对话；后台可按 agent 配置标题/欢迎语/主题色/位置/来源白名单/限流，SSE 工具内部信息不外泄（详见 docs/widget-embed-design.md）
 - [x] Agent 详情页二级导航：**Agent 配置**（模型/工具/知识库/客服组件）+ **对话记录**（每个用户与 agent 的对话列表，客服访客会话带来源域名、可按类型筛选与搜索、可打开与删除）

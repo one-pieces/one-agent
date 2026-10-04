@@ -26,6 +26,11 @@ def api(path, method="GET", body=None):
     except urllib.error.HTTPError as e:
         return e.code, None
 
+# 上次崩溃可能留下同名残留 → 先清干净，避免卡片重复导致定位不唯一
+for leftover in api("/api/providers")[1]:
+    if leftover["name"].startswith(("编辑页测试", "新建页测试")):
+        api(f"/api/providers/{leftover['id']}", "DELETE")
+
 
 SECRET_KEY = "sk-edit-page-secret-9f3a"
 st, temp = api("/api/providers", "POST", {
@@ -48,19 +53,22 @@ with sync_playwright() as p:
     page.wait_for_timeout(1200)
     row = page.locator(".card", has_text="编辑页测试供应商")
     edit_link = row.get_by_role("link", name="编辑")
-    check("编辑是链接且指向 /providers/<id>", edit_link.count() == 1 and edit_link.get_attribute("href") == f"/providers/{temp_id}",
+    check("编辑是链接且指向 /providers/<id>", edit_link.count() == 1 and edit_link.get_attribute("href") == f"/settings/providers/{temp_id}",
           edit_link.get_attribute("href") if edit_link.count() else "无")
     check("列表页没有弹窗", page.locator(".ui-dialog-content").count() == 0)
     check("「新建供应商」也指向独立页 /providers/new",
-          page.get_by_role("link", name="新建供应商").get_attribute("href") == "/providers/new")
+          page.get_by_role("link", name="新建供应商").get_attribute("href") == "/settings/providers/new")
 
     print("\n【2】点编辑 → 进入编辑页")
     edit_link.click()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(900)
-    check("URL 是编辑页", page.url.endswith(f"/providers/{temp_id}"), page.url)
+    check("URL 是编辑页", page.url.endswith(f"/settings/providers/{temp_id}"), page.url)
     check("页面无弹窗、无遮罩", page.locator(".ui-dialog-content").count() == 0 and page.locator(".ui-dialog-overlay").count() == 0)
-    check("标题是供应商名", page.locator("h1").inner_text().strip() == "编辑页测试供应商", page.locator("h1").inner_text())
+    check("标题是供应商名（h2，外层是设置外壳的 h1）",
+          page.locator("h2").first.inner_text().strip() == "编辑页测试供应商"
+          and page.locator("h1").first.inner_text().strip() == "设置",
+          f"h1={page.locator('h1').first.inner_text().strip()} h2={page.locator('h2').first.inner_text().strip()}")
     body = page.inner_text("body")
     check("显示引用情况（无引用时明确说明）", "引用" in body, [l for l in body.split("\n") if "引用" in l][:1])
 
@@ -83,11 +91,11 @@ with sync_playwright() as p:
     page.locator(".page textarea").first.fill("m-a\nm-b\nm-c")
     page.get_by_role("button", name="保存修改").click()
     try:
-        page.wait_for_url(f"**/providers", timeout=8000)
+        page.wait_for_url(f"**/settings/providers", timeout=8000)
     except Exception:
         pass
     page.wait_for_timeout(1500)
-    check("保存后回到列表页", page.url.rstrip("/").endswith("/providers"), page.url)
+    check("保存后回到列表页", page.url.rstrip("/").endswith("/settings/providers"), page.url)
     st, updated = api(f"/api/providers/{temp_id}")
     check("后端已更新（名称 + 3 个模型）", updated["name"] == "编辑页测试供应商（改名）" and updated["models"] == ["m-a", "m-b", "m-c"],
           f"{updated['name']} {updated['models']}")
@@ -98,7 +106,7 @@ with sync_playwright() as p:
     page.get_by_role("link", name="新建供应商").click()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(800)
-    check("进入 /providers/new", page.url.endswith("/providers/new"), page.url)
+    check("进入 /providers/new", page.url.endswith("/settings/providers/new"), page.url)
     check("表单为空", page.locator(".page input").nth(0).input_value() == "")
     check("必填未填时按钮禁用", page.get_by_role("button", name="创建供应商").is_disabled())
     page.locator(".page input").nth(0).fill("新建页测试")
@@ -106,11 +114,11 @@ with sync_playwright() as p:
     check("填完名称+地址后可创建", not page.get_by_role("button", name="创建供应商").is_disabled())
     page.get_by_role("button", name="创建供应商").click()
     try:
-        page.wait_for_url("**/providers", timeout=8000)
+        page.wait_for_url("**/settings/providers", timeout=8000)
     except Exception:
         pass
     page.wait_for_timeout(1500)
-    check("创建后回到列表且出现新卡片", page.url.rstrip("/").endswith("/providers") and page.locator(".card", has_text="新建页测试").count() == 1)
+    check("创建后回到列表且出现新卡片", page.url.rstrip("/").endswith("/settings/providers") and page.locator(".card", has_text="新建页测试").count() == 1)
 
     print("\n【6】409 场景：编辑页保存非法值给出错误提示")
     page.goto(f"{BASE}/providers/{temp_id}", wait_until="networkidle")
@@ -118,7 +126,7 @@ with sync_playwright() as p:
     page.locator(".page input").nth(1).fill("不是URL")
     page.get_by_role("button", name="保存修改").click()
     page.wait_for_timeout(1200)
-    check("非法 Base URL → 页内错误提示且停留原页", page.locator(".error-banner").count() == 1 and f"/providers/{temp_id}" in page.url,
+    check("非法 Base URL → 页内错误提示且停留原页", page.locator(".error-banner").count() == 1 and f"/settings/providers/{temp_id}" in page.url,
           page.locator(".error-banner").inner_text()[:60] if page.locator(".error-banner").count() else "无提示")
 
     real_errors = [e for e in errors if "400" not in e and "404" not in e]

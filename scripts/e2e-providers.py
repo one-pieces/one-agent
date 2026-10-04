@@ -89,10 +89,17 @@ with sync_playwright() as p:
     errors = []
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
     page.goto(f"{BASE}/providers", wait_until="networkidle")
-    check("页面标题为「供应商」", page.locator("h1").inner_text().strip() == "供应商", page.locator("h1").inner_text())
+    check("设置外壳：标题「设置」+ 子导航「供应商」",
+          page.locator("h1").first.inner_text().strip() == "设置"
+          and page.locator("nav.agent-subnav a", has_text="供应商").count() == 1,
+          page.locator("h1").first.inner_text())
     cards = page.locator(".card")
     check("列表渲染出供应商卡片", cards.count() == base_count, f"cards={cards.count()} expected={base_count}")
-    check("导航栏出现「供应商」入口", page.locator("a", has_text="供应商").count() >= 1)
+    nav_labels = [page.locator("nav.app-nav a.app-nav-item").nth(i).inner_text().strip()
+                  for i in range(page.locator("nav.app-nav a.app-nav-item").count())]
+    check("供应商已从主导航移入「设置」（导航底部是设置）",
+          "供应商" not in nav_labels and nav_labels[-1] == "设置", str(nav_labels))
+    check("设置页二级导航出现「供应商」", page.locator("nav.agent-subnav a", has_text="供应商").count() == 1)
 
     page.screenshot(path="/tmp/oa_providers_list.png", full_page=True)
 
@@ -100,7 +107,7 @@ with sync_playwright() as p:
     page.get_by_role("link", name="新建供应商").click()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(700)
-    check("新建走独立页面", page.url.endswith("/providers/new") and page.locator(".ui-dialog-content").count() == 0, page.url)
+    check("新建走独立页面", page.url.endswith("/settings/providers/new") and page.locator(".ui-dialog-content").count() == 0, page.url)
     page.locator(".page input").nth(0).fill("UI 建的供应商")
     page.locator(".page input").nth(1).fill("https://ui.example.com/v1")
     page.locator(".page input[type=password]").fill("sk-ui-key")
@@ -108,7 +115,7 @@ with sync_playwright() as p:
     page.screenshot(path="/tmp/oa_providers_form.png", full_page=True)
     page.get_by_role("button", name="创建供应商").click()
     try:
-        page.wait_for_url("**/providers", timeout=8000)
+        page.wait_for_url("**/settings/providers", timeout=8000)
     except Exception:
         pass
     page.wait_for_timeout(1200)
@@ -119,7 +126,7 @@ with sync_playwright() as p:
     page.locator(".card", has_text="UI 建的供应商").get_by_role("link", name="编辑").click()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(900)
-    check("编辑走独立页面", "/providers/" in page.url and page.locator(".ui-dialog-content").count() == 0, page.url)
+    check("编辑走独立页面", "/settings/providers/" in page.url and page.locator(".ui-dialog-content").count() == 0, page.url)
     check("编辑时密钥不回填（避免暴露）", page.locator(".page input[type=password]").input_value() == "")
     check("编辑时显示「已保存」占位", "已保存" in (page.locator(".page input[type=password]").get_attribute("placeholder") or ""), page.locator(".page input[type=password]").get_attribute("placeholder"))
     check("字段已回填（名称/地址/模型）",
@@ -128,12 +135,12 @@ with sync_playwright() as p:
     page.locator(".page input").nth(0).fill("UI 建的供应商（改）")
     page.get_by_role("button", name="保存修改").click()
     try:
-        page.wait_for_url("**/providers", timeout=8000)
+        page.wait_for_url("**/settings/providers", timeout=8000)
     except Exception:
         pass
     page.wait_for_timeout(1200)
     row = page.locator(".card", has_text="UI 建的供应商（改）")
-    check("改名生效且已回到列表页", row.count() == 1 and page.url.rstrip("/").endswith("/providers"))
+    check("改名生效且已回到列表页", row.count() == 1 and page.url.rstrip("/").endswith("/settings/providers"))
     check("留空保存后密钥仍在", "已配密钥" in row.inner_text(), row.inner_text().split("\n")[1][:80])
 
     # 删除被引用的 → 报错横幅

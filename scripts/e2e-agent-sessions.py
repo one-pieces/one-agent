@@ -93,9 +93,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(800)
     check("点标题可打开该会话", page.url.endswith(href.split("/")[-1]), f"{page.url}（期望后缀 {href.split('/')[-1]}）")
     check("会话页渲染出消息区", "chat-body" in page.content())
-    for path, expect in [("/agents", "Agents"), ("/providers", "供应商"), ("/knowledge", "知识库"), ("/logs", "日志")]:
+    for path, expect in [("/agents", "Agents"), ("/settings/providers", "供应商"), ("/knowledge", "知识库"), ("/settings/logs", "日志")]:
         page.goto(f"{BASE}{path}", wait_until="networkidle")
-        check(f"{path} 正常", expect in page.inner_text("h1"), page.locator("h1").inner_text()[:20])
+        check(f"{path} 正常", expect in page.inner_text("body"), page.locator("h1").first.inner_text()[:20])
     check("无控制台错误", not errors, errors[:2])
     b.close()
 

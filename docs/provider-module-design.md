@@ -5,7 +5,7 @@
 原先把模型连接配置（provider 类型 / Base URL / API Key）**内联在每个 agent 的表单**里：
 换一个密钥要逐个 agent 改，两台机器上的本地模型地址也不一致，同一个 DeepSeek key 在 5 个 agent 里存了 5 份。
 
-现在抽出独立实体：`providers` 表 + `/providers` 管理页，agent 只填 `providerId` 与模型 ID。
+现在抽出独立实体：`providers` 表 + `/settings/providers` 管理页（左侧导航底部的「设置」下），agent 只填 `providerId` 与模型 ID。
 
 ## 数据模型
 
@@ -19,6 +19,7 @@ CREATE TABLE providers (
 - `api_key`：**AES-256-GCM 加密存储**（与 agent 密钥同一套 `lib/crypto.ts`）
 - `models`：每行一个模型 ID，第一个是该供应商的默认模型（UI 里作为模型 ID 输入的候选清单）
 - 列表接口**不带出明文密钥**，只给 `hasApiKey`；只有 `GET /api/providers/[id]` 与 POST 响应带明文（表单回显用）
+- 编辑走**独立页面**（`/settings/providers/[id]`）：服务端取配置后**不下发明文密钥**给浏览器，只给 `hasApiKey` 标记；表单留空提交 = 不修改密钥
 
 ## agent 侧语义（契约 `providerId`）
 
@@ -51,7 +52,7 @@ CREATE TABLE providers (
 
 ## UI
 
-- **`/providers`**：列表 + 新建/编辑表单面板 + 删除。
+- **`/settings/providers`**（设置页子导航第一项，旧地址 `/providers` 307 重定向到这里）：列表 + 新建/编辑独立页 + 删除。
   - 编辑时**密钥不回填**到表单（避免在页面上暴露明文），留 placeholder「已保存（留空保持不变）」，留空保存 = 不改密钥
   - 删除被引用的供应商 → 页面顶部红色横幅显示具体原因
 - **`/agents[/new]` 表单「模型」段**：供应商下拉（显示 `名称（类型 · 已配密钥）`）+ 模型 ID（候选来自供应商登记的清单）+ Temperature + Max Tokens。

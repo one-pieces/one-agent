@@ -75,7 +75,7 @@ export default function ProviderForm({ mode, initial }: { mode: "create" | "edit
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setNotice("已保存，正在返回列表…");
       // 引用它的 agent 立即生效（后端会 invalidate），这里只需回列表
-      setTimeout(() => router.push("/providers"), 500);
+      setTimeout(() => router.push("/settings/providers"), 500);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -146,7 +146,7 @@ export default function ProviderForm({ mode, initial }: { mode: "create" | "edit
         <button className="btn primary" disabled={!canSave} onClick={() => void save()}>
           {busy ? "保存中…" : mode === "edit" ? "保存修改" : "创建供应商"}
         </button>
-        <button className="btn" onClick={() => router.push("/providers")}>
+        <button className="btn" onClick={() => router.push("/settings/providers")}>
           取消
         </button>
       </div>

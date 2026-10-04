@@ -216,7 +216,7 @@ export default function AgentForm({
             {providers.length === 0 && (
               <>
                 {" "}
-                · 还没有供应商，先去 <Link href="/providers">供应商</Link> 页面建一个
+                · 还没有供应商，先去 <Link href="/settings/providers">设置 · 供应商</Link> 里建一个
               </>
             )}
           </span>
