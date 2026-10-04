@@ -140,7 +140,7 @@ export default function KnowledgePage() {
                 </div>
               </div>
               {kb.description && <p className="kb-desc">{kb.description}</p>}
-              <div className="card-sub">
+              <div className="card-sub card-sub-wrap">
                 <code>{kb.id}</code> · {fileCounts[kb.id] ?? 0} 个文件 · 更新于{" "}
                 {new Date(kb.updatedAt).toLocaleString("zh-CN")}
               </div>

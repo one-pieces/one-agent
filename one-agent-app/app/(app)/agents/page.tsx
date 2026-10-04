@@ -25,7 +25,7 @@ export default function AgentsPage() {
           <div key={a.id} className="card">
             <div className="card-main">
               <h2>{a.name}</h2>
-              <div className="card-sub">
+              <div className="card-sub card-sub-wrap">
                 <code>{a.id}</code> ·{" "}
                 {a.providerId ? (
                   <>

@@ -1173,12 +1173,28 @@ h3 {
   font-size: 16px;
 }
 
+/* 卡片主体：flex 子项默认 min-width:auto 不会收缩，长文本（.card-sub 是 nowrap）
+   会把右侧按钮挤出卡片 → 显式允许收缩，让 ellipsis 生效 */
+.card-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .card-sub {
   color: var(--muted-foreground);
   font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 长元信息（如供应商的 id/类型/Base URL/模型清单）：换行展示，避免窄屏把关键信息截掉 */
+.card-sub-wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
 }
 
 .btn {

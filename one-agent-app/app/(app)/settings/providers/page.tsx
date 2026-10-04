@@ -72,7 +72,10 @@ export default function ProvidersPage() {
                 <ServerIcon size={16} />
                 {p.name}
               </h2>
-              <div className="card-sub">
+              <div
+                className="card-sub card-sub-wrap"
+                title={`${p.id} · ${p.kind} · ${p.baseUrl} · ${p.hasApiKey ? "已配密钥" : "未配密钥"} · 模型 ${p.models.length} 个${p.models.length > 0 ? `（默认 ${p.models[0]}）` : ""}`}
+              >
                 <code>{p.id}</code> · {p.kind} · {p.baseUrl} ·{" "}
                 {p.hasApiKey ? "已配密钥" : "未配密钥"} · 模型 {p.models.length} 个
                 {p.models.length > 0 && <>（默认 {p.models[0]}）</>}
