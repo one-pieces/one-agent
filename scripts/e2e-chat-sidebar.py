@@ -128,7 +128,7 @@ with sync_playwright() as p:
     print("\n【6】单列侧边栏：agent 上下文页也常驻同一棵会话树")
     page.goto(f"{BASE}/chat/agent/agent-shop-cs", wait_until="networkidle")
     page.wait_for_timeout(1500)
-    check("侧边栏标题固定为「对话」（不再随 agent 变）", page.locator(".sidebar-title").inner_text().strip() == "对话", page.locator(".sidebar-title").inner_text())
+    check("侧边栏标题固定为「工作区」（不再随 agent 变）", page.locator(".sidebar-title").inner_text().strip() == "工作区", page.locator(".sidebar-title").inner_text())
     check("仍是平铺分组（单列侧边栏统一模式）", page.locator(".sidebar-group-head").count() >= 2,
           f"{page.locator('.sidebar-group-head').count()} 组")
     check("该 agent 的分组在树里", page.locator(".sidebar-group-head", has_text="电商平台客服").count() == 1)

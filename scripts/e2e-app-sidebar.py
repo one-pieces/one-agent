@@ -65,6 +65,8 @@ with sync_playwright() as p:
           f"sidebar={geo['sidebar']['w']} main.x={geo['mainX']} sidebar.right={geo['sidebar']['right']}")
     check("旧的 56px 图标导航栏已不存在", geo["oldNav"] == 0)
     check("顶部的 Agent 标题已去掉", geo["titleRows"] == 0, f"命中 {geo['titleRows']} 个")
+    check("侧边栏最上面一行是「工作区」",
+          page.locator(".sidebar-title").first.inner_text().strip() == "工作区", page.locator(".sidebar-title").first.inner_text())
     check("顶部不再有导航项与横线", geo["navRows"] == 0 and geo["divider"] == 0,
           f"nav={geo['navRows']} divider={geo['divider']}")
     check("会话树是侧边栏最上面的内容（紧贴侧边栏顶部）",

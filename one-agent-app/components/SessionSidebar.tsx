@@ -160,7 +160,7 @@ export default function SessionSidebar({ activeSessionId, onOpenSession, onSessi
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-header-left">
-          <span className="sidebar-title">对话</span>
+          <span className="sidebar-title">工作区</span>
         </div>
         <div className="sidebar-header-actions">
           <button className="sidebar-icon-btn" onClick={() => router.push("/agents")} title="管理 Agent">

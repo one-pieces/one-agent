@@ -48,7 +48,7 @@ pnpm run dev        # http://localhost:3000
 > `transpilePackages` 会编译这份副本）会**静默继续用旧代码**，表现为「改动不生效 / 类型找不到」。
 > 若改动未生效，先执行这条重装命令。
 
-UI：左侧单列侧边栏（主体是按 Agent 分组的会话树，底部依次为主题切换 / 知识库 / 设置；供应商与日志收在设置里）+ 主区跟随导航（点会话就地打开对话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 消息删除。
+UI：左侧单列侧边栏（主体是「工作区」——按 Agent 分组的会话树，底部依次为主题切换 / 知识库 / 设置；供应商与日志收在设置里）+ 主区跟随导航（点会话就地打开对话）+ Markdown 渲染 + 工具状态徽章 + Token 用量 + 消息删除。
 
 数据落在 `one-agent-app/data/`（agents 配置 + sessions 历史，SQLite，已 gitignore）。
 
